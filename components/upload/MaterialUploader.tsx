@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { saveCustomExam } from "@/lib/test-store";
+import { generateExamLocally } from "@/lib/local-question-generator";
 import { 
   UploadCloud, 
   FileText, 
@@ -15,7 +16,10 @@ import {
   AlertCircle,
   Key,
   Clock,
-  ArrowRight
+  ArrowRight,
+  Cpu,
+  FileCheck,
+  Loader2
 } from "lucide-react";
 
 export default function MaterialUploader() {
@@ -25,29 +29,61 @@ export default function MaterialUploader() {
   const [targetExam, setTargetExam] = useState<string>("SBI_PO");
   const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">("medium");
   const [questionCount, setQuestionCount] = useState<number>(15);
+  const [engineMode, setEngineMode] = useState<"local" | "gemini">("local");
   const [customKey, setCustomKey] = useState<string>("");
   const [selectedSections, setSelectedSections] = useState<string[]>(["quant", "reasoning", "english"]);
   
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const [isExtractingPdf, setIsExtractingPdf] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStep, setGenerationStep] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Simple client-side text extractor for .txt / .md / raw files
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      if (content) {
-        setNotesText((prev) => (prev ? `${prev}\n\n--- ${file.name} ---\n${content}` : content));
+    setUploadedFileName(file.name);
+    setErrorMessage("");
+
+    if (file.name.toLowerCase().endsWith(".pdf")) {
+      // PDF File Extraction
+      setIsExtractingPdf(true);
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const res = await fetch("/api/extract-pdf", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || "Failed to extract text from PDF.");
+        }
+
+        setNotesText(data.text);
+      } catch (err: any) {
+        setErrorMessage(err.message || "Failed to parse PDF document.");
+      } finally {
+        setIsExtractingPdf(false);
       }
-    };
-    reader.readAsText(file);
+    } else {
+      // Plain text / Markdown file extraction
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target?.result as string;
+        if (content) {
+          setNotesText(content);
+        }
+      };
+      reader.readAsText(file);
+    }
   };
 
   const handleLoadSampleNotes = () => {
+    setUploadedFileName("Sample_Banking_DPP_04.pdf");
     setNotesText(
       `BANKING QUANT & REASONING STUDY MATERIAL // DPP 04
 Topics: Profit & Loss with Partnership, Missing Series, Seating Arrangement & Syllogism.
@@ -78,43 +114,64 @@ Key Concepts & Formulas:
 
   const handleGenerate = async () => {
     if (!notesText.trim()) {
-      setErrorMessage("Please paste or upload study materials, DPP notes, or chapter topics.");
+      setErrorMessage("Please upload a PDF document or paste study materials/DPP notes.");
       return;
     }
 
     setErrorMessage("");
     setIsGenerating(true);
-    setGenerationStep("Analyzing study material concepts and syllabus nodes...");
 
     try {
-      setTimeout(() => setGenerationStep("Formulating authentic 5-option banking questions with negative marking..."), 2000);
-      setTimeout(() => setGenerationStep("Generating step-by-step solutions and 20s shortcut tricks..."), 4000);
+      if (engineMode === "local") {
+        // ----------------------------------------------------
+        // 100% INBUILT LOCAL NLP ENGINE (Zero API keys / No Gemini)
+        // ----------------------------------------------------
+        setGenerationStep("Running Inbuilt Local Engine: Parsing syllabus topics & formulas...");
+        await new Promise((r) => setTimeout(r, 600));
 
-      const res = await fetch("/api/generate-test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        setGenerationStep("Formulating authentic 5-option questions with negative marking...");
+        await new Promise((r) => setTimeout(r, 600));
+
+        const localExam = generateExamLocally({
           studyMaterialText: notesText,
           targetExam,
           difficulty,
           questionCount,
           sections: selectedSections,
-          examTitle: `${targetExam.replace("_", " ")} Custom AI Test Drill`,
-          apiKey: customKey || undefined,
-        }),
-      });
+          examTitle: `${targetExam.replace("_", " ")} Drill (${uploadedFileName || "Uploaded Material"})`,
+          sourceFileName: uploadedFileName || undefined,
+        });
 
-      const data = await res.json();
+        saveCustomExam(localExam);
+        router.push(`/exam/${localExam.id}`);
+      } else {
+        // ----------------------------------------------------
+        // OPTIONAL GEMINI AI ENGINE
+        // ----------------------------------------------------
+        setGenerationStep("Connecting to Gemini AI: Calibrating banking questions...");
 
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to generate test.");
+        const res = await fetch("/api/generate-test", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            studyMaterialText: notesText,
+            targetExam,
+            difficulty,
+            questionCount,
+            sections: selectedSections,
+            examTitle: `${targetExam.replace("_", " ")} Custom AI Test Drill`,
+            apiKey: customKey || undefined,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || "Failed to generate test.");
+        }
+
+        saveCustomExam(data.exam);
+        router.push(`/exam/${data.exam.id}`);
       }
-
-      // Save to local test store
-      saveCustomExam(data.exam);
-
-      // Navigate to the test interface
-      router.push(`/exam/${data.exam.id}`);
     } catch (err: any) {
       setErrorMessage(err.message || "An error occurred while generating the test.");
       setIsGenerating(false);
@@ -124,24 +181,58 @@ Key Concepts & Formulas:
   return (
     <div className="w-full max-w-4xl mx-auto bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-white/10 shadow-2xl p-6 sm:p-10 space-y-8">
       {/* Header */}
-      <div>
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-500 dark:text-cyan-400 text-xs font-mono font-bold mb-3">
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>AI Study Material to CBT Engine</span>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-500 dark:text-cyan-400 text-xs font-mono font-bold mb-3">
+            <Cpu className="w-3.5 h-3.5" />
+            <span>Inbuilt Local Model & PDF Converter</span>
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+            Upload PDF & Generate Live CBT Exam
+          </h2>
+          <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm mt-1">
+            Drop any PDF, DPP, or lecture notes. TestPrime converts it into an authentic banking exam in seconds.
+          </p>
         </div>
-        <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-          Upload Notes or DPP & Generate Mock Test
-        </h2>
-        <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm mt-1">
-          Paste any chapter notes, daily practice problems (DPP), or formula sheets. TestPrime will calibrate a real-time banking exam for you.
-        </p>
+
+        {/* Engine Switcher */}
+        <div className="p-1 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-white/10 flex items-center gap-1 self-start font-mono text-xs">
+          <button
+            type="button"
+            onClick={() => setEngineMode("local")}
+            className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+              engineMode === "local"
+                ? "bg-cyan-500 text-slate-950 shadow-xs"
+                : "text-slate-500 hover:text-slate-300"
+            }`}
+          >
+            ⚡ Inbuilt Local Model (No API Key)
+          </button>
+          <button
+            type="button"
+            onClick={() => setEngineMode("gemini")}
+            className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+              engineMode === "gemini"
+                ? "bg-indigo-600 text-white shadow-xs"
+                : "text-slate-500 hover:text-slate-300"
+            }`}
+          >
+            ✨ Gemini AI (Cloud)
+          </button>
+        </div>
       </div>
 
-      {/* Input Section */}
+      {/* PDF DROPZONE & INPUT */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <label className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-            Study Material / Notes / DPP Content
+          <label className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
+            <span>Study Material / PDF Upload</span>
+            {uploadedFileName && (
+              <span className="text-emerald-500 dark:text-emerald-400 font-semibold lowercase flex items-center gap-1">
+                <FileCheck className="w-3.5 h-3.5" />
+                ({uploadedFileName})
+              </span>
+            )}
           </label>
           <button
             type="button"
@@ -152,27 +243,53 @@ Key Concepts & Formulas:
           </button>
         </div>
 
-        <div className="relative">
-          <textarea
-            value={notesText}
-            onChange={(e) => setNotesText(e.target.value)}
-            rows={7}
-            placeholder="Paste your chapter notes, questions list, syllogism rules, arithmetic formulas, reading passages, or topic outlines here..."
-            className="w-full p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 text-xs sm:text-sm font-mono focus:outline-none focus:ring-2 focus:ring-cyan-500/50 resize-y"
+        {/* Drag & Drop Area */}
+        <label className="relative border-2 border-dashed border-slate-300 dark:border-white/15 hover:border-cyan-500 dark:hover:border-cyan-400 rounded-3xl p-6 sm:p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all bg-slate-50/50 dark:bg-slate-950/40 group">
+          <input
+            type="file"
+            accept=".pdf,.txt,.md"
+            onChange={handleFileUpload}
+            className="hidden"
           />
 
-          {/* Quick Upload Pill */}
-          <div className="mt-2 flex items-center gap-3">
-            <label className="cursor-pointer inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-xs font-mono text-slate-700 dark:text-slate-300 transition-colors">
-              <UploadCloud className="w-4 h-4 text-cyan-500" />
-              <span>Attach File (.txt / .md)</span>
-              <input type="file" accept=".txt,.md" onChange={handleFileUpload} className="hidden" />
-            </label>
-            <span className="text-[11px] text-slate-400 font-mono">
-              {notesText ? `${notesText.length} characters loaded` : "No material added yet"}
-            </span>
+          {isExtractingPdf ? (
+            <div className="flex flex-col items-center gap-3 py-4">
+              <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+              <p className="text-xs font-mono text-cyan-400 font-bold">
+                Extracting text and topics from PDF locally...
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 text-cyan-500 dark:text-cyan-400 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                <UploadCloud className="w-6 h-6" />
+              </div>
+              <h4 className="font-bold text-sm sm:text-base text-slate-800 dark:text-slate-200">
+                Click to browse or drag & drop your PDF here
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Supports PDF question sheets, DPPs, chapter notes, or formula sheets (.pdf, .txt, .md)
+              </p>
+            </>
+          )}
+        </label>
+
+        {/* Text preview / editor */}
+        {notesText && (
+          <div className="relative">
+            <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 mb-1">
+              <span>Extracted Material Preview:</span>
+              <span>{notesText.length} characters extracted</span>
+            </div>
+            <textarea
+              value={notesText}
+              onChange={(e) => setNotesText(e.target.value)}
+              rows={5}
+              placeholder="Extracted PDF text will appear here..."
+              className="w-full p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-cyan-500/50 resize-y"
+            />
           </div>
-        </div>
+        )}
       </div>
 
       {/* Configuration Grid */}
@@ -278,20 +395,22 @@ Key Concepts & Formulas:
         </div>
       </div>
 
-      {/* Optional Gemini API Key Override */}
-      <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-xs font-mono text-slate-600 dark:text-slate-400">
-          <Key className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-          <span>Gemini AI Key (Uses Server Environment Key by default):</span>
+      {/* Optional Gemini API Key if user explicitly chooses Gemini mode */}
+      {engineMode === "gemini" && (
+        <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-xs font-mono text-slate-600 dark:text-slate-400">
+            <Key className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+            <span>Gemini AI Key (Uses Server Environment Key by default):</span>
+          </div>
+          <input
+            type="password"
+            placeholder="AIzaSy... (Optional override)"
+            value={customKey}
+            onChange={(e) => setCustomKey(e.target.value)}
+            className="w-full sm:w-60 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/10 text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none"
+          />
         </div>
-        <input
-          type="password"
-          placeholder="AIzaSy... (Optional override)"
-          value={customKey}
-          onChange={(e) => setCustomKey(e.target.value)}
-          className="w-full sm:w-60 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/10 text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none"
-        />
-      </div>
+      )}
 
       {/* Error Display */}
       {errorMessage && (
@@ -305,9 +424,9 @@ Key Concepts & Formulas:
       <div className="pt-2">
         <button
           onClick={handleGenerate}
-          disabled={isGenerating}
+          disabled={isGenerating || isExtractingPdf}
           className={`w-full py-4 rounded-2xl font-bold font-mono text-sm sm:text-base flex items-center justify-center gap-2 shadow-xl transition-all cursor-pointer ${
-            isGenerating
+            isGenerating || isExtractingPdf
               ? "bg-slate-700 text-slate-300 cursor-wait"
               : "bg-gradient-to-r from-cyan-500 via-indigo-600 to-emerald-500 text-white hover:opacity-95 active:scale-[0.99]"
           }`}
@@ -317,10 +436,15 @@ Key Concepts & Formulas:
               <div className="w-5 h-5 rounded-full border-2 border-white border-t-transparent animate-spin" />
               <span>{generationStep}</span>
             </>
+          ) : isExtractingPdf ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <span>Extracting PDF Content...</span>
+            </>
           ) : (
             <>
               <Zap className="w-5 h-5 fill-current" />
-              <span>Convert Material to Live Banking Exam</span>
+              <span>{engineMode === "local" ? "Extract & Launch Live CBT Test (Local Engine)" : "Generate with Gemini AI"}</span>
               <ArrowRight className="w-5 h-5" />
             </>
           )}
