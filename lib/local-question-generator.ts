@@ -126,109 +126,215 @@ export function generateExamLocally(options: GenerateOptions): Exam {
 
 /**
  * Regex parser for extracting already formatted multiple choice questions from PDFs
- * Handles multi-question Direction sets (e.g., Directions Q. 1 - 4: ...) without shuffling
+ * Handles multi-question Direction sets (e.g., Directions Q. 1 - 5 / Box Puzzles / Seating Sets) without shuffling
  */
 function extractPreExistingQuestions(text: string): Question[] {
   const extracted: Question[] = [];
-  
-  // Step 1: Detect Direction blocks with question ranges like "Directions (Q. 1-4):" or "Questions 1 to 4 are based on..."
-  const directionRangeRegex = /(?:Directions?\s*(?:\(?(?:Q\.?|Questions?)\s*(\d+)\s*(?:-|to)\s*(\d+)\)?|\s*(\d+)\s*(?:-|to)\s*(\d+))[\.:\-]?)([\s\S]*?)(?=(?:(?:Question|Q|Q\.)\s*\d+[\.:\)]|\n\s*\d+\.\s+|$))/gi;
-  
+
+  // Step 1: Pre-process and normalize line endings
+  const cleanText = text.replace(/\r\n/g, "\n");
+
+  // Step 2: Extract explicit Direction / Passage sets (e.g. "Directions (1-5): ...", "Directions (Q. 1 to 5): ...")
   interface DirectionSet {
     startQ: number;
     endQ: number;
     passage: string;
   }
-  
+
   const directionSets: DirectionSet[] = [];
+  const dirRegex = /(?:(?:Directions?|Questions?|Q\.)\s*(?:\(?\s*(?:Q\.?|Questions?)?\s*(\d+)\s*(?:-|to|–)\s*(?:Q\.?|Questions?)?\s*(\d+)\s*\)?|\s*(\d+)\s*(?:-|to|–)\s*(\d+))[\.:\-]?)([\s\S]*?)(?=(?:(?:Directions?|Questions?)\s*\(?\s*(?:Q\.?)?\s*\d+\s*(?:-|to|–)|\n\s*(?:Question|Q|Q\.)\s*\d+[\.:\)]|\n\s*\d+\.\s+|$))/gi;
+
   let dMatch;
-  while ((dMatch = directionRangeRegex.exec(text)) !== null) {
+  while ((dMatch = dirRegex.exec(cleanText)) !== null) {
     const startQ = parseInt(dMatch[1] || dMatch[3], 10);
     const endQ = parseInt(dMatch[2] || dMatch[4], 10);
     const passage = (dMatch[5] || "").trim();
     if (!isNaN(startQ) && !isNaN(endQ) && passage.length > 15) {
-      directionSets.push({ 
-        startQ, 
-        endQ, 
-        passage: `Directions (Q. ${startQ} - ${endQ}):\n${passage}` 
+      directionSets.push({
+        startQ,
+        endQ,
+        passage: `Directions (Q. ${startQ} - ${endQ}):\n${passage}`,
       });
     }
   }
 
-  // Step 2: Extract individual question blocks (e.g., "1.", "Q1.", "Question 1.")
-  const questionBlocks = text.split(/(?:(?:Question|Q|Q\.)\s*(\d+)[\.:\)]|\n\s*(\d+)\.\s+)/i);
+  // Step 3: Split into question blocks by question number (e.g., "1.", "Q1.", "Question 1.")
+  const questionBlocks = cleanText.split(/(?:(?:Question|Q|Q\.)\s*(\d+)[\.:\)]|\n\s*(\d+)\.\s+)/i);
+
+  // Check questionBlocks[0] for any preamble/puzzle description before Question 1
+  let currentActivePassage: string | undefined = undefined;
+  let activePassageEndQ: number = 0;
+
+  const preamble = (questionBlocks[0] || "").trim();
+  if (preamble.length > 25) {
+    // Check if preamble contains puzzle/seating/passage text
+    const lowerPreamble = preamble.toLowerCase();
+    if (
+      lowerPreamble.includes("direction") ||
+      lowerPreamble.includes("study the") ||
+      lowerPreamble.includes("read the") ||
+      lowerPreamble.includes("box") ||
+      lowerPreamble.includes("person") ||
+      lowerPreamble.includes("sitting") ||
+      lowerPreamble.includes("floor") ||
+      lowerPreamble.includes("facing") ||
+      lowerPreamble.includes("statement") ||
+      lowerPreamble.includes("table") ||
+      lowerPreamble.includes("given below")
+    ) {
+      currentActivePassage = preamble;
+      activePassageEndQ = 5; // Default propagate to first 5 questions
+    }
+  }
 
   let currentBlockQNum = 1;
-  let activeSharedPassage: string | undefined = undefined;
-  let activePassageEndQ = 0;
 
   for (let i = 1; i < questionBlocks.length; i += 3) {
     const rawQNum = questionBlocks[i] || questionBlocks[i + 1];
     const qNum = rawQNum ? parseInt(rawQNum, 10) : currentBlockQNum;
     const block = questionBlocks[i + 2] || "";
 
-    if (block.length < 15) continue;
+    if (block.length < 10) continue;
 
-    // Check if this question number falls inside any parsed direction range (e.g. Q1-4)
+    // Check if this question number falls inside an explicit Direction range (e.g. Q1-5)
     const matchingDir = directionSets.find((d) => qNum >= d.startQ && qNum <= d.endQ);
     let passageContext: string | undefined = matchingDir ? matchingDir.passage : undefined;
 
-    // Also handle inline passage detection if direction sets were not explicitly tagged
-    if (!passageContext) {
-      if (qNum <= activePassageEndQ && activeSharedPassage) {
-        passageContext = activeSharedPassage;
-      }
+    // Look for options (A) ... (E) or A. ... E. or 1. ... 5.
+    const optionMatches = [...block.matchAll(/(?:\(([A-Ea-e])\)|(?:\n|^)\s*([A-Ea-e])[\.\)]|\(([1-5])\)|(?:\n|^)\s*([1-5])[\.\)])\s*([^\n\(\)]+)/g)];
+
+    let rawQText = block;
+    if (optionMatches.length >= 4) {
+      // Cut off where options start
+      rawQText = block.split(/(?:\(([A-Ea-e])\)|(?:\n|^)\s*[A-Ea-e][\.\)]|\(([1-5])\)|(?:\n|^)\s*[1-5][\.\)])/)[0].trim();
     }
 
-    // Look for options (A) or A.
-    const optionMatches = [...block.matchAll(/(?:\(([A-Ea-e])\)|([A-Ea-e])[\.\)])\s*([^\n\(\)]+)/g)];
-    if (optionMatches.length >= 4) {
-      let rawQText = block.split(/(?:\([A-Ea-e]\)|[A-Ea-e][\.\)])/)[0].trim();
-      let extractedQuestion = rawQText;
+    // Inspect rawQText for inline puzzle statements / directions (e.g. "Eight boxes J, K, L... Which of the following...")
+    let extractedQuestion = rawQText;
 
-      // Check if inline direction block starts here (e.g., "Directions (Q. 1-4): ...")
-      const inlineDirMatch = rawQText.match(/(?:Directions?\s*(?:\(?(?:Q\.?|Questions?)\s*(\d+)\s*(?:-|to)\s*(\d+)\)?|\s*(\d+)\s*(?:-|to)\s*(\d+))[\.:\-]?)([\s\S]*?)(?:Which|What|Find|How|In the given|$)/i);
-      if (inlineDirMatch) {
-        const start = parseInt(inlineDirMatch[1] || inlineDirMatch[3], 10);
-        const end = parseInt(inlineDirMatch[2] || inlineDirMatch[4], 10);
-        const pText = inlineDirMatch[5].trim();
-        if (pText.length > 20) {
-          passageContext = `Directions (Q. ${start} - ${end}):\n${pText}`;
-          activeSharedPassage = passageContext;
-          activePassageEndQ = end;
-          extractedQuestion = rawQText.replace(inlineDirMatch[0], "").trim();
-        }
-      } else if (!passageContext && rawQText.includes("\n\n")) {
+    // 1. Check for explicit inline direction syntax
+    const inlineDirMatch = rawQText.match(/(?:Directions?\s*(?:\(?(?:Q\.?|Questions?)?\s*(\d+)\s*(?:-|to|–)\s*(\d+)\)?|\s*(\d+)\s*(?:-|to|–)\s*(\d+))[\.:\-]?)([\s\S]*?)(?=(?:Which|What|Find|How|In the given|Who|If|When|Select|$))/i);
+    if (inlineDirMatch) {
+      const start = parseInt(inlineDirMatch[1] || inlineDirMatch[3] || `${qNum}`, 10);
+      const end = parseInt(inlineDirMatch[2] || inlineDirMatch[4] || `${qNum + 4}`, 10);
+      const pText = inlineDirMatch[5].trim();
+      if (pText.length > 20) {
+        passageContext = `Directions (Q. ${start} - ${end}):\n${pText}`;
+        currentActivePassage = passageContext;
+        activePassageEndQ = end;
+        extractedQuestion = rawQText.replace(inlineDirMatch[0], "").trim();
+      }
+    } else if (
+      // 2. Check for puzzle/seating setup embedded directly before the question sentence
+      (rawQText.toLowerCase().includes("box") ||
+        rawQText.toLowerCase().includes("sitting") ||
+        rawQText.toLowerCase().includes("seated") ||
+        rawQText.toLowerCase().includes("facing") ||
+        rawQText.toLowerCase().includes("floor") ||
+        rawQText.toLowerCase().includes("placed one above") ||
+        rawQText.toLowerCase().includes("study the following") ||
+        rawQText.toLowerCase().includes("read the following") ||
+        rawQText.toLowerCase().includes("statements:")) &&
+      rawQText.length > 80
+    ) {
+      // Split on question query starters (Which, Who, How many, What, If, Find)
+      const querySplitMatch = rawQText.match(/([\s\S]+?)(?=(?:Which of the following|Who among the following|How many|What is the|If all the|Which box|Who sits|In which of))/i);
+      if (querySplitMatch && querySplitMatch[1].trim().length > 40) {
+        const passagePart = querySplitMatch[1].trim();
+        const questionPart = rawQText.slice(querySplitMatch[1].length).trim();
+        passageContext = passagePart;
+        currentActivePassage = passagePart;
+        activePassageEndQ = qNum + 4; // Share with next 4 questions in this puzzle set
+        extractedQuestion = questionPart || rawQText;
+      } else if (rawQText.includes("\n\n")) {
         const parts = rawQText.split("\n\n");
-        if (parts.length >= 2 && (parts[0].toLowerCase().includes("statement") || parts[0].toLowerCase().includes("direction") || parts[0].toLowerCase().includes("study the") || parts[0].toLowerCase().includes("read the"))) {
+        if (parts.length >= 2) {
           passageContext = parts[0].trim();
+          currentActivePassage = passageContext;
+          activePassageEndQ = qNum + 4;
           extractedQuestion = parts.slice(1).join("\n\n").trim();
         }
       }
+    }
 
+    // Propagate active puzzle/passage context across the set (e.g. Q1-5)
+    if (!passageContext && currentActivePassage && qNum <= activePassageEndQ) {
+      passageContext = currentActivePassage;
+    }
+
+    // Check if what follows the options in this block is a new direction/puzzle for future questions
+    const optionsEndIndex = block.lastIndexOf(optionMatches[optionMatches.length - 1]?.[0] || "");
+    if (optionsEndIndex > 0) {
+      const trailingAfterOptions = block.slice(optionsEndIndex + (optionMatches[optionMatches.length - 1]?.[0]?.length || 0)).trim();
+      if (
+        trailingAfterOptions.length > 35 &&
+        (trailingAfterOptions.toLowerCase().includes("direction") ||
+          trailingAfterOptions.toLowerCase().includes("study the") ||
+          trailingAfterOptions.toLowerCase().includes("box") ||
+          trailingAfterOptions.toLowerCase().includes("person") ||
+          trailingAfterOptions.toLowerCase().includes("sitting") ||
+          trailingAfterOptions.toLowerCase().includes("floor"))
+      ) {
+        currentActivePassage = trailingAfterOptions;
+        activePassageEndQ = qNum + 5;
+      }
+    }
+
+    // Parse Options
+    if (optionMatches.length >= 4) {
       const options = optionMatches.slice(0, 5).map((m, oIdx) => {
         const id = String.fromCharCode(65 + oIdx);
         return {
           id,
-          text: (m[3] || "").trim(),
+          text: (m[5] || "").trim(),
         };
       });
 
       while (options.length < 5) {
         options.push({
           id: String.fromCharCode(65 + options.length),
-          text: "None of the above",
+          text: "None of these",
         });
       }
 
-      // Infer section from question content (e.g. puzzle/seating/statements -> reasoning)
+      // Infer section
       let sectionId: ExamSectionId = "reasoning";
-      const lowerText = (passageContext || "" + " " + extractedQuestion).toLowerCase();
-      if (lowerText.includes("facing") || lowerText.includes("seating") || lowerText.includes("syllogism") || lowerText.includes("conclusion") || lowerText.includes("inequality") || lowerText.includes("coded") || lowerText.includes("blood relation")) {
+      const lowerText = ((passageContext || "") + " " + extractedQuestion).toLowerCase();
+      if (
+        lowerText.includes("facing") ||
+        lowerText.includes("seating") ||
+        lowerText.includes("box") ||
+        lowerText.includes("floor") ||
+        lowerText.includes("syllogism") ||
+        lowerText.includes("conclusion") ||
+        lowerText.includes("inequality") ||
+        lowerText.includes("coded") ||
+        lowerText.includes("blood relation") ||
+        lowerText.includes("direction sense") ||
+        lowerText.includes("placed one above")
+      ) {
         sectionId = "reasoning";
-      } else if (lowerText.includes("equation") || lowerText.includes("series") || lowerText.includes("profit") || lowerText.includes("ratio") || lowerText.includes("percentage") || lowerText.includes("train") || lowerText.includes("speed") || lowerText.includes("table di")) {
+      } else if (
+        lowerText.includes("equation") ||
+        lowerText.includes("series") ||
+        lowerText.includes("profit") ||
+        lowerText.includes("ratio") ||
+        lowerText.includes("percentage") ||
+        lowerText.includes("train") ||
+        lowerText.includes("speed") ||
+        lowerText.includes("table di") ||
+        lowerText.includes("arithmetic")
+      ) {
         sectionId = "quant";
-      } else if (lowerText.includes("grammatical") || lowerText.includes("synonym") || lowerText.includes("antonym") || lowerText.includes("sentence") || lowerText.includes("passage") || lowerText.includes("cloze")) {
+      } else if (
+        lowerText.includes("grammatical") ||
+        lowerText.includes("synonym") ||
+        lowerText.includes("antonym") ||
+        lowerText.includes("sentence") ||
+        lowerText.includes("passage") ||
+        lowerText.includes("cloze") ||
+        lowerText.includes("comprehension")
+      ) {
         sectionId = "english";
       }
 
@@ -241,7 +347,7 @@ function extractPreExistingQuestions(text: string): Question[] {
         options,
         correctOptionId: "A",
         explanation: "Extracted directly from uploaded study material.",
-        shortcutTrick: "Review key formulas and eliminate unlikely options.",
+        shortcutTrick: "Review key premises, identify constraints, and eliminate incorrect options.",
         topicTag: passageContext ? "Puzzle / Passage Set" : "Extracted Problem",
         difficulty: "medium",
       });

@@ -69,11 +69,31 @@ export default function QuestionPane({
   let topPassage = question.passageContext;
   let mainQuestion = questionContent;
 
-  if (!topPassage && questionContent.includes("\n\n")) {
-    const parts = questionContent.split("\n\n");
-    if (parts.length >= 2 && (parts[0].toLowerCase().includes("statement") || parts[0].toLowerCase().includes("direction") || parts[0].toLowerCase().includes("passage") || parts[0].toLowerCase().includes("study the") || parts[0].toLowerCase().includes("read the"))) {
-      topPassage = parts[0];
-      mainQuestion = parts.slice(1).join("\n\n");
+  if (!topPassage) {
+    if (questionContent.includes("\n\n")) {
+      const parts = questionContent.split("\n\n");
+      if (
+        parts.length >= 2 &&
+        (parts[0].toLowerCase().includes("statement") ||
+          parts[0].toLowerCase().includes("direction") ||
+          parts[0].toLowerCase().includes("passage") ||
+          parts[0].toLowerCase().includes("study the") ||
+          parts[0].toLowerCase().includes("read the") ||
+          parts[0].toLowerCase().includes("box") ||
+          parts[0].toLowerCase().includes("sitting") ||
+          parts[0].toLowerCase().includes("floor") ||
+          parts[0].toLowerCase().includes("placed"))
+      ) {
+        topPassage = parts[0];
+        mainQuestion = parts.slice(1).join("\n\n");
+      }
+    } else {
+      // Check if setup text is embedded before the question query (e.g. Which of the following...)
+      const queryMatch = questionContent.match(/([\s\S]+?)(?=(?:Which of the following|Who among the following|How many|What is the|If all the|In which of))/i);
+      if (queryMatch && queryMatch[1].trim().length > 35) {
+        topPassage = queryMatch[1].trim();
+        mainQuestion = questionContent.slice(queryMatch[1].length).trim();
+      }
     }
   }
 
