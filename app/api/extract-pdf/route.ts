@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Using require for pdf-parse CommonJS compatibility
-const pdfParse = require("pdf-parse");
+const pdfParseModule = require("pdf-parse");
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,12 +14,28 @@ export async function POST(req: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    const data = await pdfParse(buffer);
-    const extractedText = data.text || "";
+    let extractedText = "";
+    let pages = 1;
+
+    if (typeof pdfParseModule === "function") {
+      const data = await pdfParseModule(buffer);
+      extractedText = data.text || "";
+      pages = data.numpages || 1;
+    } else if (pdfParseModule.PDFParse) {
+      const parser = new pdfParseModule.PDFParse({ data: buffer });
+      const data = await parser.getText();
+      extractedText = data.text || "";
+      pages = data.total || (data.pages ? data.pages.length : 1);
+      if (typeof parser.destroy === "function") {
+        await parser.destroy();
+      }
+    } else {
+      throw new Error("Could not initialize PDF parser engine");
+    }
 
     if (!extractedText.trim()) {
       return NextResponse.json(
-        { error: "Could not extract text from the PDF. It might be scanned/image-only." },
+        { error: "Could not extract text from the PDF. The document may be empty or contain only raster images." },
         { status: 422 }
       );
     }
@@ -28,13 +43,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       text: extractedText,
-      pages: data.numpages,
-      info: data.info,
+      pages,
     });
   } catch (error: any) {
     console.error("PDF Extraction Error:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to process PDF" },
+      { error: error.message || "Failed to process PDF file" },
       { status: 500 }
     );
   }
