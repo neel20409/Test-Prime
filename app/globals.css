@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #f4f7fb;
+  --foreground: #1c2d42;
+}
+
+.dark {
+  --background: #090d16;
+  --foreground: #f1f5f9;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+  user-select: none;
+}
+
+/* Authentic TCS iON Exam Palette Shapes */
+.tcs-status-not-visited {
+  background-color: #ffffff;
+  border: 1px solid #c7d2fe;
+  color: #334155;
+}
+
+.tcs-status-not-answered {
+  background-color: #e11d48;
+  color: #ffffff;
+  clip-path: polygon(0% 0%, 100% 0%, 100% 75%, 50% 100%, 0% 75%);
+}
+
+.tcs-status-answered {
+  background-color: #16a34a;
+  color: #ffffff;
+  clip-path: polygon(0% 25%, 50% 0%, 100% 25%, 100% 100%, 0% 100%);
+}
+
+.tcs-status-marked {
+  background-color: #7c3aed;
+  color: #ffffff;
+  border-radius: 9999px;
+}
+
+.tcs-status-marked-answered {
+  background-color: #7c3aed;
+  color: #ffffff;
+  border-radius: 9999px;
+  position: relative;
+}
+
+.tcs-status-marked-answered::after {
+  content: '';
+  position: absolute;
+  bottom: 0px;
+  right: 0px;
+  width: 9px;
+  height: 9px;
+  background-color: #22c55e;
+  border-radius: 9999px;
+  border: 1.5px solid #ffffff;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.3);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.5);
+}
