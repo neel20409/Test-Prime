@@ -107,19 +107,82 @@ export function generateExamLocally(options: GenerateOptions): Exam {
 
 /**
  * Regex parser for extracting already formatted multiple choice questions from PDFs
+ * Handles multi-question Direction sets (e.g., Directions Q. 1 - 4: ...)
  */
 function extractPreExistingQuestions(text: string): Question[] {
   const extracted: Question[] = [];
-  // Pattern matching "Q1." or "1." followed by options A, B, C, D, E
-  const questionBlocks = text.split(/(?:(?:Question|Q|Q\.)\s*\d+[\.:\)]|\n\s*\d+\.\s+)/i);
+  
+  // Step 1: Detect Direction blocks with question ranges like "Directions (Q. 1-4):" or "Questions 1 to 4 are based on..."
+  const directionRangeRegex = /(?:Directions?\s*(?:\(?(?:Q\.?|Questions?)\s*(\d+)\s*(?:-|to)\s*(\d+)\)?|\s*(\d+)\s*(?:-|to)\s*(\d+))[\.:\-]?)([\s\S]*?)(?=(?:(?:Question|Q|Q\.)\s*\d+[\.:\)]|\n\s*\d+\.\s+|$))/gi;
+  
+  interface DirectionSet {
+    startQ: number;
+    endQ: number;
+    passage: string;
+  }
+  
+  const directionSets: DirectionSet[] = [];
+  let dMatch;
+  while ((dMatch = directionRangeRegex.exec(text)) !== null) {
+    const startQ = parseInt(dMatch[1] || dMatch[3], 10);
+    const endQ = parseInt(dMatch[2] || dMatch[4], 10);
+    const passage = (dMatch[5] || "").trim();
+    if (!isNaN(startQ) && !isNaN(endQ) && passage.length > 15) {
+      directionSets.push({ startQ, endQ, passage });
+    }
+  }
 
-  questionBlocks.forEach((block, idx) => {
-    if (idx === 0 || block.length < 20) return;
+  // Step 2: Extract individual question blocks (e.g., "1.", "Q1.", "Question 1.")
+  const questionBlocks = text.split(/(?:(?:Question|Q|Q\.)\s*(\d+)[\.:\)]|\n\s*(\d+)\.\s+)/i);
+
+  let currentBlockQNum = 1;
+  let activeSharedPassage: string | undefined = undefined;
+  let activePassageEndQ = 0;
+
+  for (let i = 1; i < questionBlocks.length; i += 3) {
+    const rawQNum = questionBlocks[i] || questionBlocks[i + 1];
+    const qNum = rawQNum ? parseInt(rawQNum, 10) : currentBlockQNum;
+    const block = questionBlocks[i + 2] || "";
+
+    if (block.length < 15) continue;
+
+    // Check if this question number falls inside any parsed direction range (e.g. Q1-4)
+    const matchingDir = directionSets.find((d) => qNum >= d.startQ && qNum <= d.endQ);
+    let passageContext: string | undefined = matchingDir ? matchingDir.passage : undefined;
+
+    // Also handle inline passage detection if direction sets were not explicitly tagged
+    if (!passageContext) {
+      if (qNum <= activePassageEndQ && activeSharedPassage) {
+        passageContext = activeSharedPassage;
+      }
+    }
 
     // Look for options (A) or A.
     const optionMatches = [...block.matchAll(/(?:\(([A-Ea-e])\)|([A-Ea-e])[\.\)])\s*([^\n\(\)]+)/g)];
     if (optionMatches.length >= 4) {
-      const qText = block.split(/(?:\([A-Ea-e]\)|[A-Ea-e][\.\)])/)[0].trim();
+      let rawQText = block.split(/(?:\([A-Ea-e]\)|[A-Ea-e][\.\)])/)[0].trim();
+      let extractedQuestion = rawQText;
+
+      // Check if inline direction block starts here (e.g., "Directions (Q. 1-4): ...")
+      const inlineDirMatch = rawQText.match(/(?:Directions?\s*(?:\(?(?:Q\.?|Questions?)\s*(\d+)\s*(?:-|to)\s*(\d+)\)?|\s*(\d+)\s*(?:-|to)\s*(\d+))[\.:\-]?)([\s\S]*?)(?:Which|What|Find|How|In the given|$)/i);
+      if (inlineDirMatch) {
+        const start = parseInt(inlineDirMatch[1] || inlineDirMatch[3], 10);
+        const end = parseInt(inlineDirMatch[2] || inlineDirMatch[4], 10);
+        const pText = inlineDirMatch[5].trim();
+        if (pText.length > 20) {
+          passageContext = `Directions (Q. ${start}-${end}):\n${pText}`;
+          activeSharedPassage = passageContext;
+          activePassageEndQ = end;
+          extractedQuestion = rawQText.replace(inlineDirMatch[0], "").trim();
+        }
+      } else if (!passageContext && rawQText.includes("\n\n")) {
+        const parts = rawQText.split("\n\n");
+        if (parts.length >= 2 && (parts[0].toLowerCase().includes("statement") || parts[0].toLowerCase().includes("direction") || parts[0].toLowerCase().includes("study the") || parts[0].toLowerCase().includes("read the"))) {
+          passageContext = parts[0].trim();
+          extractedQuestion = parts.slice(1).join("\n\n").trim();
+        }
+      }
+
       const options = optionMatches.slice(0, 5).map((m, oIdx) => {
         const id = String.fromCharCode(65 + oIdx);
         return {
@@ -128,7 +191,6 @@ function extractPreExistingQuestions(text: string): Question[] {
         };
       });
 
-      // Ensure 5 options
       while (options.length < 5) {
         options.push({
           id: String.fromCharCode(65 + options.length),
@@ -137,22 +199,37 @@ function extractPreExistingQuestions(text: string): Question[] {
       }
 
       extracted.push({
-        id: `extracted-q-${idx}`,
-        sectionId: idx % 3 === 0 ? "quant" : idx % 3 === 1 ? "reasoning" : "english",
-        questionNumber: idx,
-        questionText: qText,
+        id: `extracted-q-${qNum || extracted.length + 1}`,
+        sectionId: (extracted.length % 3 === 0) ? "quant" : (extracted.length % 3 === 1) ? "reasoning" : "english",
+        questionNumber: qNum || extracted.length + 1,
+        passageContext,
+        questionText: extractedQuestion || "Select the appropriate conclusion / option:",
         options,
         correctOptionId: "A",
         explanation: "Extracted directly from uploaded study material.",
         shortcutTrick: "Review key formulas and eliminate unlikely options.",
-        topicTag: "Extracted DPP Problem",
+        topicTag: passageContext ? "Puzzle / Passage Set (Q1-4)" : "Extracted Problem",
         difficulty: "medium",
       });
+
+      currentBlockQNum = (qNum || currentBlockQNum) + 1;
     }
-  });
+  }
 
   return extracted;
 }
+
+/**
+ * Shared Puzzles & Passages for reasoning and DI sets
+ */
+const SEATING_PUZZLE_PASSAGE = `Directions (Q. 1 - 4): Study the following information carefully and answer the questions given below:
+Eight persons - A, B, C, D, E, F, G and H are sitting around a circular table facing towards the center of the table.
+• A sits third to the right of B.
+• Only two persons sit between B and G.
+• C sits second to the left of G.
+• D sits immediate right of C.
+• E is an immediate neighbor of neither A nor B.
+• F sits second to the right of H.`;
 
 /**
  * Synthesize calibrated Indian banking questions from lines and keywords
@@ -245,15 +322,81 @@ function synthesizeSectionQuestion(
       };
     }
   } else if (sectionId === "reasoning") {
-    // Syllogism or Inequality
-    const type = subIndex % 2;
-    if (type === 0) {
+    // Linked Seating Arrangement Puzzle Set (Q1-4 have the same top paragraph!)
+    if (subIndex < 4) {
+      const puzzleQuestions = [
+        {
+          q: "Who among the following sits immediate left of A?",
+          opts: [
+            { id: "A", text: "D" },
+            { id: "B", text: "C" },
+            { id: "C", text: "F" },
+            { id: "D", text: "G" },
+            { id: "E", text: "H" },
+          ],
+          ans: "A",
+          exp: "Tracing circular positions clockwise: B -> (2 spots) -> G -> C -> D -> A. D sits immediate left of A.",
+        },
+        {
+          q: "How many persons sit between B and D when counted from the right of B?",
+          opts: [
+            { id: "A", text: "Three" },
+            { id: "B", text: "Two" },
+            { id: "C", text: "Four" },
+            { id: "D", text: "One" },
+            { id: "E", text: "None" },
+          ],
+          ans: "A",
+          exp: "Counting clockwise from B to D passes through 3 individuals: G, C, and E. Hence 3 persons sit between them.",
+        },
+        {
+          q: "Which of the following statements is definitely TRUE regarding H?",
+          opts: [
+            { id: "A", text: "H sits immediate right of B" },
+            { id: "B", text: "H sits opposite to D" },
+            { id: "C", text: "H sits second to the left of A" },
+            { id: "D", text: "H is an immediate neighbor of E" },
+            { id: "E", text: "None of these" },
+          ],
+          ans: "A",
+          exp: "From the constraint F sits 2nd to right of H, H is placed adjacent to B facing center.",
+        },
+        {
+          q: "Who sits exactly opposite to C in the circular arrangement?",
+          opts: [
+            { id: "A", text: "H" },
+            { id: "B", text: "A" },
+            { id: "C", text: "F" },
+            { id: "D", text: "B" },
+            { id: "E", text: "E" },
+          ],
+          ans: "A",
+          exp: "In an 8-person circular table, opposite positions are separated by 3 persons. Position opposite C (pos 3) is H (pos 7).",
+        },
+      ];
+
+      const item = puzzleQuestions[subIndex % 4];
       return {
         id: `local-reas-${qNum}`,
         sectionId: "reasoning",
         questionNumber: qNum,
-        questionText: `Statements:\nI. All Accounts are Ledgers.\nII. Some Ledgers are Audits.\nIII. No Audit is Cash.\n\nConclusions:\nI. Some Accounts are Audits.\nII. No Cash is Audit.`,
-        questionTextHindi: `कथन:\nI. सभी खाते बहीखाते (Ledgers) हैं।\nII. कुछ बहीखाते ऑडिट हैं।\nIII. कोई ऑडिट नकद (Cash) नहीं है।\n\nनिष्कर्ष:\nI. कुछ खाते ऑडिट हैं।\nII. कोई नकद ऑडिट नहीं है।`,
+        passageContext: SEATING_PUZZLE_PASSAGE,
+        questionText: item.q,
+        options: item.opts,
+        correctOptionId: item.ans,
+        explanation: item.exp,
+        shortcutTrick: "Standard circular puzzle rule: 8 persons facing center => opposite person is at index (i + 4) % 8.",
+        topicTag: "Circular Seating Arrangement (Q1-4 Set)",
+        difficulty,
+      };
+    } else {
+      // Q5 onwards: Entirely different standalone question (e.g. Syllogisms or Inequalities) without Q1-4 puzzle!
+      return {
+        id: `local-reas-${qNum}`,
+        sectionId: "reasoning",
+        questionNumber: qNum,
+        passageContext: `Statements:\nI. All Accounts are Ledgers.\nII. Some Ledgers are Audits.\nIII. No Audit is Cash.\n\nConclusions:\nI. Some Accounts are Audits.\nII. No Cash is Audit.`,
+        questionText: `Which of the given conclusions logically follow(s) from the given statements?`,
         options: [
           { id: "A", text: "Only Conclusion I follows" },
           { id: "B", text: "Only Conclusion II follows" },
@@ -264,26 +407,7 @@ function synthesizeSectionQuestion(
         correctOptionId: "B",
         explanation: `1. Statement III ('No Audit is Cash') directly implies 'No Cash is Audit' (symmetric negation). Hence Conclusion II is definitely true.\n2. There is no definite intersection between Accounts and Audits, so Conclusion I does not follow.`,
         shortcutTrick: "Rule: 'No A is B' is 100% reversible to 'No B is A'. Conclusion II is immediately verified.",
-        topicTag: "Syllogism",
-        difficulty,
-      };
-    } else {
-      return {
-        id: `local-reas-${qNum}`,
-        sectionId: "reasoning",
-        questionNumber: qNum,
-        questionText: `In the given statement:\nK ≥ L > M = N ≤ O < P\n\nWhich of the following conclusions is DEFINITELY TRUE?`,
-        options: [
-          { id: "A", text: "K > N" },
-          { id: "B", text: "K = N" },
-          { id: "C", text: "M > P" },
-          { id: "D", text: "L ≤ N" },
-          { id: "E", text: "K < O" },
-        ],
-        correctOptionId: "A",
-        explanation: `From K ≥ L > M and M = N, we obtain K ≥ L > N. Since a strict inequality ('>') exists along the path, K > N is definitely true.`,
-        shortcutTrick: "Strict '>' priority in inequalities: K ≥ L > N => K > N.",
-        topicTag: "Inequalities",
+        topicTag: "Syllogism (Standalone)",
         difficulty,
       };
     }

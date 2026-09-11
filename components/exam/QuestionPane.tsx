@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Question } from "@/types/exam";
-import { ZoomIn, ZoomOut, Bookmark, HelpCircle } from "lucide-react";
+import { ZoomIn, ZoomOut, Bookmark, HelpCircle, FileText, Check } from "lucide-react";
 
 interface QuestionPaneProps {
   question: Question;
@@ -25,6 +25,38 @@ export default function QuestionPane({
 }: QuestionPaneProps) {
   const [fontSize, setFontSize] = useState<"sm" | "base" | "lg">("base");
 
+  // Keyboard shortcut listener for instantaneous 1-5 or A-E selection
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if user is in an input/textarea
+      if (["INPUT", "TEXTAREA"].includes((e.target as HTMLElement)?.tagName)) return;
+
+      const key = e.key.toUpperCase();
+      const optionMap: Record<string, string> = {
+        "1": "A",
+        "2": "B",
+        "3": "C",
+        "4": "D",
+        "5": "E",
+        "A": "A",
+        "B": "B",
+        "C": "C",
+        "D": "D",
+        "E": "E",
+      };
+
+      if (optionMap[key]) {
+        const targetOpt = question.options.find((o) => o.id === optionMap[key]);
+        if (targetOpt) {
+          onSelectOption(targetOpt.id);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [question, onSelectOption]);
+
   const fontClass = {
     sm: "text-xs sm:text-sm leading-normal",
     base: "text-sm sm:text-base leading-relaxed",
@@ -32,6 +64,18 @@ export default function QuestionPane({
   }[fontSize];
 
   const questionContent = language === "hi" && question.questionTextHindi ? question.questionTextHindi : question.questionText;
+
+  // Detect if question has top directions/statements embedded if passageContext is not explicitly provided
+  let topPassage = question.passageContext;
+  let mainQuestion = questionContent;
+
+  if (!topPassage && questionContent.includes("\n\n")) {
+    const parts = questionContent.split("\n\n");
+    if (parts.length >= 2 && (parts[0].toLowerCase().includes("statement") || parts[0].toLowerCase().includes("direction") || parts[0].toLowerCase().includes("passage") || parts[0].toLowerCase().includes("study the") || parts[0].toLowerCase().includes("read the"))) {
+      topPassage = parts[0];
+      mainQuestion = parts.slice(1).join("\n\n");
+    }
+  }
 
   return (
     <div className={`flex-1 flex flex-col h-full overflow-hidden ${isAuthenticMode ? "bg-white text-slate-900" : "bg-slate-950/70 text-slate-100"}`}>
@@ -77,77 +121,95 @@ export default function QuestionPane({
 
       {/* Main Question Scrollable Body */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-        {/* Context / Reading Comprehension Passage / DI Data Box */}
-        {question.passageContext && (
-          <div className={`p-4 sm:p-5 rounded-xl border whitespace-pre-line font-mono text-xs sm:text-sm leading-relaxed ${
+        {/* 1. TOP BOX: Context / Reading Comprehension Passage / Seating Puzzle / Direction Premise */}
+        {topPassage && (
+          <div className={`p-4 sm:p-5 rounded-2xl border whitespace-pre-line font-mono text-xs sm:text-sm leading-relaxed shadow-sm ${
             isAuthenticMode 
-              ? "bg-amber-50/60 border-amber-200 text-slate-800" 
-              : "bg-indigo-950/20 border-indigo-500/20 text-indigo-200"
+              ? "bg-amber-50/80 border-amber-300/80 text-slate-900 ring-1 ring-amber-200" 
+              : "bg-gradient-to-r from-amber-950/20 to-slate-900 border-amber-500/30 text-slate-200"
           }`}>
-            <div className="font-bold uppercase tracking-wider text-[11px] text-amber-700 dark:text-cyan-400 mb-2 flex items-center gap-1.5">
-              <HelpCircle className="w-3.5 h-3.5" />
-              <span>Reference Context / Data Set:</span>
+            <div className="font-bold uppercase tracking-wider text-[11px] text-amber-800 dark:text-amber-400 mb-2.5 flex items-center gap-2 border-b border-amber-200 dark:border-white/10 pb-2">
+              <HelpCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+              <span>Reference Paragraph / Directions / Premises (Study Carefully):</span>
             </div>
-            {question.passageContext}
+            <div className="pt-1 font-mono text-slate-800 dark:text-slate-200 leading-relaxed">
+              {topPassage}
+            </div>
           </div>
         )}
 
-        {/* Question Text */}
-        <div className={`font-medium whitespace-pre-line ${fontClass} ${isAuthenticMode ? "text-slate-900" : "text-white"}`}>
-          {questionContent}
+        {/* 2. MIDDLE BOX: Particular Question Statement */}
+        <div className={`p-4 sm:p-5 rounded-2xl border shadow-xs ${
+          isAuthenticMode ? "bg-white border-slate-200" : "bg-slate-900/60 border-white/10"
+        }`}>
+          <div className="text-[11px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <Bookmark className="w-3.5 h-3.5 text-cyan-500" />
+            <span>Question Statement:</span>
+          </div>
+          <div className={`font-semibold whitespace-pre-line ${fontClass} ${isAuthenticMode ? "text-slate-900" : "text-white"}`}>
+            {mainQuestion}
+          </div>
         </div>
 
-        {/* 5 Standard Banking Options (A, B, C, D, E) */}
+        {/* 3. BOTTOM BOX: 5 Standard Banking MCQ Options Shifted Below */}
         <div className="space-y-3 pt-2">
-          {question.options.map((opt) => {
-            const isSelected = selectedOptionId === opt.id;
-            const optionText = language === "hi" && opt.textHindi ? opt.textHindi : opt.text;
+          <div className="text-xs font-mono font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+            <span>Select the correct option (A - E):</span>
+            <span className="text-[10px] text-slate-400 hidden sm:inline font-normal">Tip: Press keys 1-5 or A-E on keyboard</span>
+          </div>
 
-            return (
-              <label
-                key={opt.id}
-                onClick={() => onSelectOption(opt.id)}
-                className={`flex items-start gap-3 p-3.5 sm:p-4 rounded-xl border transition-all cursor-pointer select-none ${
-                  isSelected
-                    ? isAuthenticMode
-                      ? "bg-[#eef5ff] border-[#337ab7] text-[#1f4a8b] shadow-xs ring-1 ring-[#337ab7]"
-                      : "bg-cyan-950/40 border-cyan-400 text-cyan-200 shadow-md ring-1 ring-cyan-400/50"
-                    : isAuthenticMode
-                      ? "bg-white border-slate-200 hover:bg-slate-50 text-slate-800"
-                      : "bg-slate-900/50 border-white/10 hover:bg-white/5 text-slate-200"
-                }`}
-              >
-                {/* Radio Circle */}
-                <div className="pt-0.5">
-                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+          <div className="space-y-2.5">
+            {question.options.map((opt) => {
+              const isSelected = selectedOptionId === opt.id;
+              const optionText = language === "hi" && opt.textHindi ? opt.textHindi : opt.text;
+
+              return (
+                <label
+                  key={opt.id}
+                  onClick={() => onSelectOption(opt.id)}
+                  className={`flex items-start gap-3 p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer select-none ${
                     isSelected
                       ? isAuthenticMode
-                        ? "border-[#1f4a8b] bg-[#1f4a8b]"
-                        : "border-cyan-400 bg-cyan-400"
-                      : "border-slate-400 dark:border-slate-600 bg-transparent"
-                  }`}>
-                    {isSelected && <span className="w-2 h-2 rounded-full bg-white" />}
+                        ? "bg-[#eef5ff] border-[#337ab7] text-[#1f4a8b] shadow-sm ring-2 ring-[#337ab7]"
+                        : "bg-cyan-950/40 border-cyan-400 text-cyan-200 shadow-md ring-2 ring-cyan-400/50"
+                      : isAuthenticMode
+                        ? "bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-800"
+                        : "bg-slate-900/50 border-white/10 hover:bg-white/5 hover:border-white/20 text-slate-200"
+                  }`}
+                >
+                  {/* Radio Circle */}
+                  <div className="pt-0.5">
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                      isSelected
+                        ? isAuthenticMode
+                          ? "border-[#1f4a8b] bg-[#1f4a8b]"
+                          : "border-cyan-400 bg-cyan-400"
+                        : "border-slate-400 dark:border-slate-600 bg-transparent"
+                    }`}>
+                      {isSelected && <span className="w-2 h-2 rounded-full bg-white" />}
+                    </div>
                   </div>
-                </div>
 
-                {/* Option Label (A, B, C, D, E) & Text */}
-                <div className="flex-1 flex items-start gap-2">
-                  <span className={`font-mono font-bold text-xs sm:text-sm px-1.5 py-0.2 rounded ${
-                    isSelected 
-                      ? isAuthenticMode ? "bg-[#1f4a8b] text-white" : "bg-cyan-500 text-black font-black"
-                      : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
-                  }`}>
-                    ({opt.id})
-                  </span>
-                  <span className={`text-xs sm:text-sm leading-relaxed ${isSelected ? "font-semibold" : ""}`}>
-                    {optionText}
-                  </span>
-                </div>
-              </label>
-            );
-          })}
+                  {/* Option Label (A, B, C, D, E) & Text */}
+                  <div className="flex-1 flex items-start gap-2.5">
+                    <span className={`font-mono font-bold text-xs sm:text-sm px-2 py-0.5 rounded-lg flex-shrink-0 ${
+                      isSelected 
+                        ? isAuthenticMode ? "bg-[#1f4a8b] text-white" : "bg-cyan-500 text-black font-black"
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                    }`}>
+                      ({opt.id})
+                    </span>
+                    <span className={`text-xs sm:text-sm leading-relaxed ${isSelected ? "font-bold" : "font-normal"}`}>
+                      {optionText}
+                    </span>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
