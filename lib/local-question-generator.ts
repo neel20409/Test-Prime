@@ -20,8 +20,8 @@ export function generateExamLocally(options: GenerateOptions): Exam {
     targetExam = "SBI_PO",
     difficulty = "medium",
     questionCount = 15,
-    sections = ["quant", "reasoning", "english"],
-    examTitle = "Inbuilt Local AI Extracted Test",
+    sections = ["reasoning", "quant", "english"],
+    examTitle = "Inbuilt Local Test Drill",
     sourceFileName,
   } = options;
 
@@ -34,37 +34,56 @@ export function generateExamLocally(options: GenerateOptions): Exam {
   const parsedDirectQuestions = extractPreExistingQuestions(studyMaterialText);
 
   const generatedQuestions: Question[] = [];
-  const selectedSectionIds = sections as ExamSectionId[];
-  const perSectionCount = Math.max(Math.ceil(questionCount / selectedSectionIds.length), 1);
+  const selectedSectionIds = (sections && sections.length > 0 ? sections : ["reasoning", "quant", "english"]) as ExamSectionId[];
 
-  let globalQuestionNumber = 1;
+  if (parsedDirectQuestions.length > 0) {
+    // ----------------------------------------------------
+    // CASE A: Direct questions extracted from PDF / Notes
+    // Maintain EXACT contiguous sequential order (NO SHUFFLE)
+    // ----------------------------------------------------
+    const totalToTake = Math.min(parsedDirectQuestions.length, questionCount);
+    for (let i = 0; i < totalToTake; i++) {
+      const q = parsedDirectQuestions[i];
+      generatedQuestions.push({
+        ...q,
+        questionNumber: i + 1,
+      });
+    }
 
-  selectedSectionIds.forEach((secId) => {
-    let countForSec = 0;
-
-    // Use direct questions matching this section if any exist
-    const directForSection = parsedDirectQuestions.filter((q) => q.sectionId === secId);
-    for (const dq of directForSection) {
-      if (countForSec < perSectionCount && globalQuestionNumber <= questionCount) {
-        generatedQuestions.push({
-          ...dq,
-          questionNumber: globalQuestionNumber++,
-        });
-        countForSec++;
+    // If PDF had fewer questions than requested, synthesize remaining cleanly
+    if (generatedQuestions.length < questionCount) {
+      let qNum = generatedQuestions.length + 1;
+      let subIdx = 0;
+      while (generatedQuestions.length < questionCount) {
+        const secId = selectedSectionIds[subIdx % selectedSectionIds.length];
+        const synQ = synthesizeSectionQuestion(secId, qNum, lines, difficulty, subIdx);
+        generatedQuestions.push(synQ);
+        qNum++;
+        subIdx++;
       }
     }
+  } else {
+    // ----------------------------------------------------
+    // CASE B: Synthesize calibrated question sets from notes
+    // ----------------------------------------------------
+    const perSectionCount = Math.max(Math.ceil(questionCount / selectedSectionIds.length), 1);
+    let globalQuestionNumber = 1;
 
-    // Synthesize remaining questions from notes content
-    while (countForSec < perSectionCount && globalQuestionNumber <= questionCount) {
-      const q = synthesizeSectionQuestion(secId, globalQuestionNumber, lines, difficulty, countForSec);
-      generatedQuestions.push(q);
-      globalQuestionNumber++;
-      countForSec++;
-    }
-  });
+    selectedSectionIds.forEach((secId) => {
+      for (let countForSec = 0; countForSec < perSectionCount && globalQuestionNumber <= questionCount; countForSec++) {
+        const q = synthesizeSectionQuestion(secId, globalQuestionNumber, lines, difficulty, countForSec);
+        generatedQuestions.push(q);
+        globalQuestionNumber++;
+      }
+    });
+  }
+
+  // Derive unique sections present in the generated questions
+  const presentSectionIds = Array.from(new Set(generatedQuestions.map((q) => q.sectionId)));
+  const finalSections: ExamSectionId[] = presentSectionIds.length > 0 ? presentSectionIds : selectedSectionIds;
 
   const durationMinutes = Math.max(Math.round(generatedQuestions.length * 1.2), 15);
-  const examSections: ExamSection[] = selectedSectionIds.map((secId) => {
+  const examSections: ExamSection[] = finalSections.map((secId) => {
     const secQs = generatedQuestions.filter((q) => q.sectionId === secId);
     return {
       id: secId,
@@ -85,7 +104,7 @@ export function generateExamLocally(options: GenerateOptions): Exam {
           ? "अंग्रेजी भाषा"
           : "सामान्य / बैंकिंग जागरूकता",
       totalQuestions: secQs.length,
-      durationMinutes: Math.max(Math.round(durationMinutes / selectedSectionIds.length), 5),
+      durationMinutes: Math.max(Math.round(durationMinutes / finalSections.length), 5),
       positiveMarks: 1.0,
       negativeMarks: 0.25,
     };
@@ -107,7 +126,7 @@ export function generateExamLocally(options: GenerateOptions): Exam {
 
 /**
  * Regex parser for extracting already formatted multiple choice questions from PDFs
- * Handles multi-question Direction sets (e.g., Directions Q. 1 - 4: ...)
+ * Handles multi-question Direction sets (e.g., Directions Q. 1 - 4: ...) without shuffling
  */
 function extractPreExistingQuestions(text: string): Question[] {
   const extracted: Question[] = [];
@@ -128,7 +147,11 @@ function extractPreExistingQuestions(text: string): Question[] {
     const endQ = parseInt(dMatch[2] || dMatch[4], 10);
     const passage = (dMatch[5] || "").trim();
     if (!isNaN(startQ) && !isNaN(endQ) && passage.length > 15) {
-      directionSets.push({ startQ, endQ, passage });
+      directionSets.push({ 
+        startQ, 
+        endQ, 
+        passage: `Directions (Q. ${startQ} - ${endQ}):\n${passage}` 
+      });
     }
   }
 
@@ -170,7 +193,7 @@ function extractPreExistingQuestions(text: string): Question[] {
         const end = parseInt(inlineDirMatch[2] || inlineDirMatch[4], 10);
         const pText = inlineDirMatch[5].trim();
         if (pText.length > 20) {
-          passageContext = `Directions (Q. ${start}-${end}):\n${pText}`;
+          passageContext = `Directions (Q. ${start} - ${end}):\n${pText}`;
           activeSharedPassage = passageContext;
           activePassageEndQ = end;
           extractedQuestion = rawQText.replace(inlineDirMatch[0], "").trim();
@@ -198,17 +221,28 @@ function extractPreExistingQuestions(text: string): Question[] {
         });
       }
 
+      // Infer section from question content (e.g. puzzle/seating/statements -> reasoning)
+      let sectionId: ExamSectionId = "reasoning";
+      const lowerText = (passageContext || "" + " " + extractedQuestion).toLowerCase();
+      if (lowerText.includes("facing") || lowerText.includes("seating") || lowerText.includes("syllogism") || lowerText.includes("conclusion") || lowerText.includes("inequality") || lowerText.includes("coded") || lowerText.includes("blood relation")) {
+        sectionId = "reasoning";
+      } else if (lowerText.includes("equation") || lowerText.includes("series") || lowerText.includes("profit") || lowerText.includes("ratio") || lowerText.includes("percentage") || lowerText.includes("train") || lowerText.includes("speed") || lowerText.includes("table di")) {
+        sectionId = "quant";
+      } else if (lowerText.includes("grammatical") || lowerText.includes("synonym") || lowerText.includes("antonym") || lowerText.includes("sentence") || lowerText.includes("passage") || lowerText.includes("cloze")) {
+        sectionId = "english";
+      }
+
       extracted.push({
         id: `extracted-q-${qNum || extracted.length + 1}`,
-        sectionId: (extracted.length % 3 === 0) ? "quant" : (extracted.length % 3 === 1) ? "reasoning" : "english",
+        sectionId,
         questionNumber: qNum || extracted.length + 1,
         passageContext,
-        questionText: extractedQuestion || "Select the appropriate conclusion / option:",
+        questionText: extractedQuestion || "Select the appropriate option:",
         options,
         correctOptionId: "A",
         explanation: "Extracted directly from uploaded study material.",
         shortcutTrick: "Review key formulas and eliminate unlikely options.",
-        topicTag: passageContext ? "Puzzle / Passage Set (Q1-4)" : "Extracted Problem",
+        topicTag: passageContext ? "Puzzle / Passage Set" : "Extracted Problem",
         difficulty: "medium",
       });
 
