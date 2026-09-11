@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { extractText } from "unpdf";
 
-const pdfParseModule = require("pdf-parse");
+export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,38 +13,23 @@ export async function POST(req: NextRequest) {
     }
 
     const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    const buffer = new Uint8Array(bytes);
 
-    let extractedText = "";
-    let pages = 1;
+    // unpdf extracts text cleanly without requiring external workers or Node canvas binaries
+    const { text, totalPages } = await extractText(buffer, { mergePages: true });
+    const fullText = Array.isArray(text) ? text.join("\n\n") : (text || "");
 
-    if (typeof pdfParseModule === "function") {
-      const data = await pdfParseModule(buffer);
-      extractedText = data.text || "";
-      pages = data.numpages || 1;
-    } else if (pdfParseModule.PDFParse) {
-      const parser = new pdfParseModule.PDFParse({ data: buffer });
-      const data = await parser.getText();
-      extractedText = data.text || "";
-      pages = data.total || (data.pages ? data.pages.length : 1);
-      if (typeof parser.destroy === "function") {
-        await parser.destroy();
-      }
-    } else {
-      throw new Error("Could not initialize PDF parser engine");
-    }
-
-    if (!extractedText.trim()) {
+    if (!fullText.trim()) {
       return NextResponse.json(
-        { error: "Could not extract text from the PDF. The document may be empty or contain only raster images." },
+        { error: "Could not extract text from the PDF. The document may be empty or contain only scanned images." },
         { status: 422 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      text: extractedText,
-      pages,
+      text: fullText,
+      pages: totalPages || 1,
     });
   } catch (error: any) {
     console.error("PDF Extraction Error:", error);

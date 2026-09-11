@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Exam, ExamSectionId } from "@/types/exam";
 
+export const dynamic = "force-dynamic";
+
 const GEMINI_MODELS = [
   "gemini-2.5-flash",
   "gemini-1.5-flash",
