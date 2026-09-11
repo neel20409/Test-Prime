@@ -71,7 +71,7 @@ export default function HomePage() {
 
         {/* Subtitle */}
         <p className="text-slate-400 text-sm sm:text-base md:text-lg max-w-2xl mx-auto leading-relaxed">
-          Why pay expensive fees for test series? Upload your daily practice problems or class notes. Our AI calibrates authentic <span className="text-cyan-300 font-semibold">SBI PO, IBPS PO & Clerk</span> computer-based tests with real-time sectional timers, negative marking, and instant AI diagnostics.
+          Why pay expensive fees for test series? Upload your daily practice problems or class notes. TestPrime calibrates authentic <span className="text-cyan-300 font-semibold">SBI PO, IBPS PO & Clerk</span> computer-based tests with real-time sectional timers, negative marking, and instant diagnostic scorecards.
         </p>
 
         {/* Action CTAs */}
@@ -199,11 +199,11 @@ export default function HomePage() {
             </div>
           ))}
 
-          {/* AI Generator CTA Card */}
+          {/* Generator CTA Card */}
           <div className="p-6 rounded-3xl bg-gradient-to-br from-indigo-950/40 via-slate-900 to-slate-900 border border-indigo-500/30 shadow-xl space-y-5 flex flex-col justify-between">
             <div className="space-y-3">
               <span className="px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 text-xs font-mono font-bold">
-                Custom AI Generator
+                Custom Notes & DPP Converter
               </span>
               <h3 className="text-xl font-bold text-white tracking-tight">Convert Your Specific Notes</h3>
               <p className="text-xs text-slate-300 leading-relaxed">
@@ -227,7 +227,7 @@ export default function HomePage() {
 
       {/* FOOTER */}
       <footer className="max-w-6xl mx-auto px-4 sm:px-6 pt-16 border-t border-white/10 text-center text-xs font-mono text-slate-500 space-y-2">
-        <p>TestPrime // Open-Source AI Competitive Exam & CBT Simulator Engine</p>
+        <p>TestPrime // Open-Source Competitive Exam & CBT Simulator Engine</p>
         <p className="text-[11px] text-slate-600">Built for Indian Banking & Government Exam Aspirants</p>
       </footer>
     </div>

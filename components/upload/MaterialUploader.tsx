@@ -7,14 +7,12 @@ import { generateExamLocally } from "@/lib/local-question-generator";
 import { 
   UploadCloud, 
   FileText, 
-  Sparkles, 
   Settings2, 
   Zap, 
   ShieldCheck, 
   BookOpen, 
   Layers, 
   AlertCircle,
-  Key,
   Clock,
   ArrowRight,
   Cpu,
@@ -29,8 +27,6 @@ export default function MaterialUploader() {
   const [targetExam, setTargetExam] = useState<string>("SBI_PO");
   const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">("medium");
   const [questionCount, setQuestionCount] = useState<number>(15);
-  const [engineMode, setEngineMode] = useState<"local" | "gemini">("local");
-  const [customKey, setCustomKey] = useState<string>("");
   const [selectedSections, setSelectedSections] = useState<string[]>(["quant", "reasoning", "english"]);
   
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
@@ -122,56 +118,24 @@ Key Concepts & Formulas:
     setIsGenerating(true);
 
     try {
-      if (engineMode === "local") {
-        // ----------------------------------------------------
-        // 100% INBUILT LOCAL NLP ENGINE (Zero API keys / No Gemini)
-        // ----------------------------------------------------
-        setGenerationStep("Running Inbuilt Local Engine: Parsing syllabus topics & formulas...");
-        await new Promise((r) => setTimeout(r, 600));
+      setGenerationStep("Parsing syllabus topics, puzzles, and formulas...");
+      await new Promise((r) => setTimeout(r, 400));
 
-        setGenerationStep("Formulating authentic 5-option questions with negative marking...");
-        await new Promise((r) => setTimeout(r, 600));
+      setGenerationStep("Structuring authentic 5-option question sets with negative marking...");
+      await new Promise((r) => setTimeout(r, 400));
 
-        const localExam = generateExamLocally({
-          studyMaterialText: notesText,
-          targetExam,
-          difficulty,
-          questionCount,
-          sections: selectedSections,
-          examTitle: `${targetExam.replace("_", " ")} Drill (${uploadedFileName || "Uploaded Material"})`,
-          sourceFileName: uploadedFileName || undefined,
-        });
+      const localExam = generateExamLocally({
+        studyMaterialText: notesText,
+        targetExam,
+        difficulty,
+        questionCount,
+        sections: selectedSections,
+        examTitle: `${targetExam.replace("_", " ")} Drill (${uploadedFileName || "Uploaded Material"})`,
+        sourceFileName: uploadedFileName || undefined,
+      });
 
-        saveCustomExam(localExam);
-        router.push(`/exam/${localExam.id}`);
-      } else {
-        // ----------------------------------------------------
-        // OPTIONAL GEMINI AI ENGINE
-        // ----------------------------------------------------
-        setGenerationStep("Connecting to Gemini AI: Calibrating banking questions...");
-
-        const res = await fetch("/api/generate-test", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            studyMaterialText: notesText,
-            targetExam,
-            difficulty,
-            questionCount,
-            sections: selectedSections,
-            examTitle: `${targetExam.replace("_", " ")} Custom AI Test Drill`,
-            apiKey: customKey || undefined,
-          }),
-        });
-
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.error || "Failed to generate test.");
-        }
-
-        saveCustomExam(data.exam);
-        router.push(`/exam/${data.exam.id}`);
-      }
+      saveCustomExam(localExam);
+      router.push(`/exam/${localExam.id}`);
     } catch (err: any) {
       setErrorMessage(err.message || "An error occurred while generating the test.");
       setIsGenerating(false);
@@ -185,40 +149,14 @@ Key Concepts & Formulas:
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-500 dark:text-cyan-400 text-xs font-mono font-bold mb-3">
             <Cpu className="w-3.5 h-3.5" />
-            <span>Inbuilt Local Model & PDF Converter</span>
+            <span>Inbuilt Local CBT Engine</span>
           </div>
           <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
             Upload PDF & Generate Live CBT Exam
           </h2>
           <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm mt-1">
-            Drop any PDF, DPP, or lecture notes. TestPrime converts it into an authentic banking exam in seconds.
+            Drop any PDF, DPP, or study notes. TestPrime converts it into an authentic exam drill instantly.
           </p>
-        </div>
-
-        {/* Engine Switcher */}
-        <div className="p-1 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-white/10 flex items-center gap-1 self-start font-mono text-xs">
-          <button
-            type="button"
-            onClick={() => setEngineMode("local")}
-            className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
-              engineMode === "local"
-                ? "bg-cyan-500 text-slate-950 shadow-xs"
-                : "text-slate-500 hover:text-slate-300"
-            }`}
-          >
-            ⚡ Inbuilt Local Model (No API Key)
-          </button>
-          <button
-            type="button"
-            onClick={() => setEngineMode("gemini")}
-            className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
-              engineMode === "gemini"
-                ? "bg-indigo-600 text-white shadow-xs"
-                : "text-slate-500 hover:text-slate-300"
-            }`}
-          >
-            ✨ Gemini AI (Cloud)
-          </button>
         </div>
       </div>
 
@@ -256,7 +194,7 @@ Key Concepts & Formulas:
             <div className="flex flex-col items-center gap-3 py-4">
               <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
               <p className="text-xs font-mono text-cyan-400 font-bold">
-                Extracting text and topics from PDF locally...
+                Extracting text and topics from PDF...
               </p>
             </div>
           ) : (
@@ -395,23 +333,6 @@ Key Concepts & Formulas:
         </div>
       </div>
 
-      {/* Optional Gemini API Key if user explicitly chooses Gemini mode */}
-      {engineMode === "gemini" && (
-        <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-xs font-mono text-slate-600 dark:text-slate-400">
-            <Key className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-            <span>Gemini AI Key (Uses Server Environment Key by default):</span>
-          </div>
-          <input
-            type="password"
-            placeholder="AIzaSy... (Optional override)"
-            value={customKey}
-            onChange={(e) => setCustomKey(e.target.value)}
-            className="w-full sm:w-60 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/10 text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none"
-          />
-        </div>
-      )}
-
       {/* Error Display */}
       {errorMessage && (
         <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-500 dark:text-rose-400 text-xs font-mono flex items-center gap-2">
@@ -444,7 +365,7 @@ Key Concepts & Formulas:
           ) : (
             <>
               <Zap className="w-5 h-5 fill-current" />
-              <span>{engineMode === "local" ? "Extract & Launch Live CBT Test (Local Engine)" : "Generate with Gemini AI"}</span>
+              <span>Extract & Launch Live CBT Test</span>
               <ArrowRight className="w-5 h-5" />
             </>
           )}
@@ -453,3 +374,4 @@ Key Concepts & Formulas:
     </div>
   );
 }
+

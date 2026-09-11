@@ -207,7 +207,7 @@ export default function ResultPage({ params }: { params: Promise<{ id: string }>
                 : "text-slate-400 hover:text-white"
             }`}
           >
-            Sectional Breakdown & AI Insights
+            Sectional Breakdown & Performance Insights
           </button>
           <button
             onClick={() => setActiveTab("review")}
@@ -268,11 +268,11 @@ export default function ResultPage({ params }: { params: Promise<{ id: string }>
               </div>
             </div>
 
-            {/* AI Diagnostic Recommendations */}
+            {/* Diagnostic Recommendations */}
             <div className="rounded-3xl bg-gradient-to-r from-indigo-950/40 to-slate-900 border border-indigo-500/30 p-6 sm:p-8 shadow-xl space-y-4">
               <div className="flex items-center gap-2 text-indigo-400 font-mono text-xs font-bold uppercase tracking-wider">
                 <Sparkles className="w-4 h-4" />
-                <span>AI Performance Telemetry & Cutoff Strategy</span>
+                <span>Performance Telemetry & Cutoff Strategy</span>
               </div>
               <h3 className="text-xl font-bold text-white">Smart Action Plan for Next Mock</h3>
 
