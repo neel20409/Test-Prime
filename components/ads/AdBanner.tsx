@@ -18,7 +18,7 @@ export function AdBanner({
 }: AdBannerProps) {
   const finalSlot = slotId || slot || "testprime-default";
   const isProd = process.env.NODE_ENV === "production";
-  const adsenseId = process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID;
+  const adsenseId = process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID || "ca-pub-8023550227126773";
 
   const formatStyles = {
     leaderboard: "w-full max-w-[728px] min-h-[90px] h-[90px]",

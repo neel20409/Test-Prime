@@ -3,7 +3,7 @@ import "./globals.css";
 import Script from "next/script";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://testprime.app"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://test-prime-nine.vercel.app"),
   title: {
     default: "TestPrime // Free Bank Mock Test 2026 & TCS iON CBT Simulator",
     template: "%s | TestPrime",
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_IN",
-    url: "https://testprime.app",
+    url: "https://test-prime-nine.vercel.app",
     title: "TestPrime // Free Bank Mock Test 2026 & TCS iON CBT Simulator",
     description:
       "Practice Indian banking exams in authentic TCS iON exam hall simulator with sectional timers, negative marking, and instant AI analytics.",
@@ -41,19 +41,17 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const adsenseId = process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID;
+  const adsenseId = process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID || "ca-pub-8023550227126773";
 
   return (
     <html lang="en">
       <head>
-        {adsenseId && (
-          <Script
-            async
-            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseId}`}
-            crossOrigin="anonymous"
-            strategy="afterInteractive"
-          />
-        )}
+        <Script
+          async
+          src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseId}`}
+          crossOrigin="anonymous"
+          strategy="afterInteractive"
+        />
       </head>
       <body className="antialiased min-h-screen bg-slate-950 text-slate-100">
         {children}
