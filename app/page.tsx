@@ -19,6 +19,7 @@ import {
   Lock
 } from "lucide-react";
 import { SAMPLE_EXAMS } from "@/lib/exam-data";
+import { SiteFooter } from "@/components/navigation/SiteFooter";
 
 export default function HomePage() {
   const sampleExam = SAMPLE_EXAMS[0];
@@ -226,10 +227,7 @@ export default function HomePage() {
       </section>
 
       {/* FOOTER */}
-      <footer className="max-w-6xl mx-auto px-4 sm:px-6 pt-16 border-t border-white/10 text-center text-xs font-mono text-slate-500 space-y-2">
-        <p>TestPrime // Open-Source Competitive Exam & CBT Simulator Engine</p>
-        <p className="text-[11px] text-slate-600">Built for Indian Banking & Government Exam Aspirants</p>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

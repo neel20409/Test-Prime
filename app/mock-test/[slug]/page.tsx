@@ -5,6 +5,7 @@ import { BANK_EXAMS, getExamBySlug } from "@/config/bank-exams";
 import { ExamJsonLd } from "@/components/seo/ExamJsonLd";
 import { AdBanner } from "@/components/ads/AdBanner";
 import { EdTechPartners } from "@/components/affiliates/EdTechPartners";
+import { SiteFooter } from "@/components/navigation/SiteFooter";
 import {
   Sparkles,
   Clock,
@@ -279,6 +280,8 @@ export default async function MockTestHubPage({ params }: PageProps) {
           <AdBanner format="leaderboard" slot={`${exam.slug}-bottom-leaderboard`} />
         </div>
       </main>
+
+      <SiteFooter />
     </div>
   );
 }

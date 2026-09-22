@@ -2,7 +2,7 @@ import { MetadataRoute } from "next";
 import { BANK_EXAMS } from "@/config/bank-exams";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://testprime.app";
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://test-prime-nine.vercel.app";
   const currentDate = new Date().toISOString();
 
   const routes: MetadataRoute.Sitemap = [
@@ -17,6 +17,24 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: currentDate,
       changeFrequency: "weekly",
       priority: 0.8,
+    },
+    {
+      url: `${baseUrl}/about`,
+      lastModified: currentDate,
+      changeFrequency: "monthly",
+      priority: 0.7,
+    },
+    {
+      url: `${baseUrl}/privacy`,
+      lastModified: currentDate,
+      changeFrequency: "monthly",
+      priority: 0.6,
+    },
+    {
+      url: `${baseUrl}/terms`,
+      lastModified: currentDate,
+      changeFrequency: "monthly",
+      priority: 0.6,
     },
   ];
 
