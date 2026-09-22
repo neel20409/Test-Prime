@@ -26,6 +26,8 @@ import {
 } from "lucide-react";
 import { AdBanner } from "@/components/ads/AdBanner";
 import { EdTechPartners } from "@/components/affiliates/EdTechPartners";
+import { ScoreShareBanner } from "@/components/viral/ScoreShareBanner";
+import { PrintableExamSheet } from "@/components/viral/PrintableExamSheet";
 
 export default function ResultPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -82,7 +84,8 @@ export default function ResultPage({ params }: { params: Promise<{ id: string }>
   });
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans pb-20">
+    <>
+      <div className="no-print min-h-screen bg-slate-950 text-slate-100 font-sans pb-20">
       {/* Top Navigation Bar */}
       <header className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-white/10 px-4 sm:px-8 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -198,6 +201,9 @@ export default function ResultPage({ params }: { params: Promise<{ id: string }>
             </div>
           </div>
         </div>
+
+        {/* VIRAL CHALLENGE & WHATSAPP SCORE SHARE + PDF DOWNLOAD */}
+        <ScoreShareBanner exam={exam} result={result} />
 
         {/* TOP LEADERBOARD AD */}
         <div className="w-full">
@@ -455,5 +461,9 @@ export default function ResultPage({ params }: { params: Promise<{ id: string }>
         )}
       </main>
     </div>
+
+    {/* PRINTABLE VECTOR PDF QUESTION PAPER & SOLUTIONS */}
+    <PrintableExamSheet exam={exam} result={result} session={session} />
+  </>
   );
 }

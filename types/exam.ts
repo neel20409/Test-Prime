@@ -40,6 +40,7 @@ export interface ExamSection {
 
 export interface Exam {
   id: string;
+  slug?: string;
   title: string;
   targetExam: 'SBI_PO' | 'IBPS_PO' | 'IBPS_CLERK' | 'RRB_OFFICER' | 'RBI_GRADE_B' | 'CUSTOM';
   totalMarks: number;

@@ -6,6 +6,7 @@ import { ExamJsonLd } from "@/components/seo/ExamJsonLd";
 import { AdBanner } from "@/components/ads/AdBanner";
 import { EdTechPartners } from "@/components/affiliates/EdTechPartners";
 import { SiteFooter } from "@/components/navigation/SiteFooter";
+import { DownloadPaperButton } from "@/components/viral/DownloadPaperButton";
 import {
   Sparkles,
   Clock,
@@ -145,11 +146,12 @@ export default async function MockTestHubPage({ params }: PageProps) {
               <Play className="w-4 h-4 fill-current" />
               <span>Start Real CBT Mock Test (Free)</span>
             </Link>
+            <DownloadPaperButton examSlug={exam.slug} examTitle={exam.name} />
             <Link
               href="/create"
               className="w-full sm:w-auto px-6 py-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-mono text-sm font-semibold transition-colors flex items-center justify-center gap-2"
             >
-              <span>Upload Custom DPP / Notes</span>
+              <span>Upload Custom DPP</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>

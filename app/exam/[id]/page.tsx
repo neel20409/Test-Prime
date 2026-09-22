@@ -10,6 +10,7 @@ import QuestionPalette from "@/components/exam/QuestionPalette";
 import ActionFooter from "@/components/exam/ActionFooter";
 import SubmitModal from "@/components/exam/SubmitModal";
 import { sound } from "@/utils/sound";
+import { PrintableExamSheet } from "@/components/viral/PrintableExamSheet";
 
 export default function ExamPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -40,6 +41,13 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
     setSession(activeSession);
     setCurrentSectionId(activeSession.currentSectionId || loadedExam.sections[0]?.id || "quant");
     setCurrentQuestionIndex(activeSession.currentQuestionIndex || 0);
+
+    // Auto-trigger print if requested via query param
+    if (typeof window !== "undefined" && window.location.search.includes("print=true")) {
+      setTimeout(() => {
+        window.print();
+      }, 600);
+    }
   }, [id, router]);
 
   // Section Countdown Timer Tick
@@ -249,18 +257,19 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
   };
 
   return (
-    <div className={`h-screen flex flex-col overflow-hidden font-sans ${isAuthenticMode ? "bg-slate-100" : "bg-slate-950 dark"}`}>
-      {/* Top Exam Header */}
-      <ExamHeader
-        exam={exam}
-        currentSectionId={currentSectionId}
-        onSelectSection={handleSelectSection}
-        sectionTimeRemaining={session.sectionTimeRemaining[currentSectionId] || 0}
-        isAuthenticMode={isAuthenticMode}
-        onToggleThemeMode={() => setIsAuthenticMode((prev) => !prev)}
-        language={language}
-        onToggleLanguage={setLanguage}
-      />
+    <>
+      <div className={`no-print h-screen flex flex-col overflow-hidden font-sans ${isAuthenticMode ? "bg-slate-100" : "bg-slate-950 dark"}`}>
+        {/* Top Exam Header */}
+        <ExamHeader
+          exam={exam}
+          currentSectionId={currentSectionId}
+          onSelectSection={handleSelectSection}
+          sectionTimeRemaining={session.sectionTimeRemaining[currentSectionId] || 0}
+          isAuthenticMode={isAuthenticMode}
+          onToggleThemeMode={() => setIsAuthenticMode((prev) => !prev)}
+          language={language}
+          onToggleLanguage={setLanguage}
+        />
 
       {/* Main CBT Workspace: Question Pane + Question Palette */}
       <div className="flex-1 flex overflow-hidden relative">
@@ -306,5 +315,9 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
         timeRemainingSeconds={session.totalTimeRemaining}
       />
     </div>
+
+    {/* PRINT-ONLY QUESTION PAPER */}
+    <PrintableExamSheet exam={exam} session={session} />
+  </>
   );
 }

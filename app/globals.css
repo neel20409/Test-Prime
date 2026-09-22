@@ -78,3 +78,36 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(100, 116, 139, 0.5);
 }
+
+/* Print Optimization for PDF Export */
+@media print {
+  @page {
+    margin: 1.2cm;
+    size: A4 portrait;
+  }
+  body {
+    background: #ffffff !important;
+    color: #111827 !important;
+    user-select: text !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .page-break {
+    page-break-after: always;
+    break-after: page;
+  }
+  .avoid-break {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}
+
+@media screen {
+  .print-only {
+    display: none !important;
+  }
+}
