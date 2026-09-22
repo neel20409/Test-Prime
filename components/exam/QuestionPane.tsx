@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Question } from "@/types/exam";
-import { ZoomIn, ZoomOut, Bookmark, HelpCircle, FileText, Check } from "lucide-react";
+import { ZoomIn, ZoomOut, Bookmark, HelpCircle, Columns, Rows, BookOpen } from "lucide-react";
 
 interface QuestionPaneProps {
   question: Question;
@@ -24,11 +24,11 @@ export default function QuestionPane({
   negativeMarks,
 }: QuestionPaneProps) {
   const [fontSize, setFontSize] = useState<"sm" | "base" | "lg">("base");
+  const [layoutMode, setLayoutMode] = useState<"split" | "stacked">("split");
 
   // Keyboard shortcut listener for instantaneous 1-5 or A-E selection
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if user is in an input/textarea
       if (["INPUT", "TEXTAREA"].includes((e.target as HTMLElement)?.tagName)) return;
 
       const key = e.key.toUpperCase();
@@ -88,7 +88,6 @@ export default function QuestionPane({
         mainQuestion = parts.slice(1).join("\n\n");
       }
     } else {
-      // Check if setup text is embedded before the question query (e.g. Which of the following...)
       const queryMatch = questionContent.match(/([\s\S]+?)(?=(?:Which of the following|Who among the following|How many|What is the|If all the|In which of))/i);
       if (queryMatch && queryMatch[1].trim().length > 35) {
         topPassage = queryMatch[1].trim();
@@ -96,6 +95,64 @@ export default function QuestionPane({
       }
     }
   }
+
+  // Question Options Renderer
+  const renderOptions = () => (
+    <div className="space-y-3 pt-2">
+      <div className="text-xs font-mono font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+        <span>Select the correct option (A - E):</span>
+        <span className="text-[10px] text-slate-400 hidden sm:inline font-normal">Tip: Press keys 1-5 or A-E on keyboard</span>
+      </div>
+
+      <div className="space-y-2.5">
+        {question.options.map((opt) => {
+          const isSelected = selectedOptionId === opt.id;
+          const optionText = language === "hi" && opt.textHindi ? opt.textHindi : opt.text;
+
+          return (
+            <label
+              key={opt.id}
+              onClick={() => onSelectOption(opt.id)}
+              className={`flex items-start gap-3 p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer select-none ${
+                isSelected
+                  ? isAuthenticMode
+                    ? "bg-[#eef5ff] border-[#337ab7] text-[#1f4a8b] shadow-sm ring-2 ring-[#337ab7]"
+                    : "bg-cyan-950/40 border-cyan-400 text-cyan-200 shadow-md ring-2 ring-cyan-400/50"
+                  : isAuthenticMode
+                    ? "bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-800"
+                    : "bg-slate-900/50 border-white/10 hover:bg-white/5 hover:border-white/20 text-slate-200"
+              }`}
+            >
+              <div className="pt-0.5">
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                  isSelected
+                    ? isAuthenticMode
+                      ? "border-[#1f4a8b] bg-[#1f4a8b]"
+                      : "border-cyan-400 bg-cyan-400"
+                    : "border-slate-400 dark:border-slate-600 bg-transparent"
+                }`}>
+                  {isSelected && <span className="w-2 h-2 rounded-full bg-white" />}
+                </div>
+              </div>
+
+              <div className="flex-1 flex items-start gap-2.5">
+                <span className={`font-mono font-bold text-xs sm:text-sm px-2 py-0.5 rounded-lg flex-shrink-0 ${
+                  isSelected 
+                    ? isAuthenticMode ? "bg-[#1f4a8b] text-white" : "bg-cyan-500 text-black font-black"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                }`}>
+                  ({opt.id})
+                </span>
+                <span className={`text-xs sm:text-sm leading-relaxed ${isSelected ? "font-bold" : "font-normal"}`}>
+                  {optionText}
+                </span>
+              </div>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   return (
     <div className={`flex-1 flex flex-col h-full overflow-hidden ${isAuthenticMode ? "bg-white text-slate-900" : "bg-slate-950/70 text-slate-100"}`}>
@@ -112,8 +169,45 @@ export default function QuestionPane({
           </span>
         </div>
 
-        {/* Right side: Marking scheme & Font Size */}
+        {/* Right side: Marking scheme, Layout Mode Toggle & Font Size */}
         <div className="flex items-center gap-3">
+          {/* TCS iON Split / Stacked Toggle (Only when passage exists) */}
+          {topPassage && (
+            <div className="flex items-center bg-slate-200/80 dark:bg-slate-800 rounded-lg p-0.5 border border-slate-300 dark:border-slate-700">
+              <button
+                type="button"
+                onClick={() => setLayoutMode("split")}
+                className={`px-2 py-1 rounded flex items-center gap-1.5 text-[11px] font-bold transition-all ${
+                  layoutMode === "split"
+                    ? isAuthenticMode
+                      ? "bg-[#1f4a8b] text-white shadow-xs"
+                      : "bg-cyan-500 text-black shadow-xs font-black"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                }`}
+                title="TCS iON Split View: Passage pinned on Left, Questions on Right"
+              >
+                <Columns className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Split Screen</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setLayoutMode("stacked")}
+                className={`px-2 py-1 rounded flex items-center gap-1.5 text-[11px] font-bold transition-all ${
+                  layoutMode === "stacked"
+                    ? isAuthenticMode
+                      ? "bg-[#1f4a8b] text-white shadow-xs"
+                      : "bg-cyan-500 text-black shadow-xs font-black"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                }`}
+                title="Stacked View: Top to Bottom layout"
+              >
+                <Rows className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Stacked</span>
+              </button>
+            </div>
+          )}
+
           <div className="flex items-center gap-2">
             <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{positiveMarks.toFixed(2)}</span>
             <span className="text-rose-600 dark:text-rose-400 font-bold">-{negativeMarks.toFixed(2)}</span>
@@ -139,97 +233,83 @@ export default function QuestionPane({
         </div>
       </div>
 
-      {/* Main Question Scrollable Body */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-        {/* 1. TOP BOX: Context / Reading Comprehension Passage / Seating Puzzle / Direction Premise */}
-        {topPassage && (
-          <div className={`p-4 sm:p-5 rounded-2xl border whitespace-pre-line font-mono text-xs sm:text-sm leading-relaxed shadow-sm ${
-            isAuthenticMode 
-              ? "bg-amber-50/80 border-amber-300/80 text-slate-900 ring-1 ring-amber-200" 
-              : "bg-gradient-to-r from-amber-950/20 to-slate-900 border-amber-500/30 text-slate-200"
+      {/* Main Question Body: Dual-Pane Split View vs. Stacked View */}
+      {topPassage && layoutMode === "split" ? (
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden divide-y md:divide-y-0 md:divide-x divide-slate-200 dark:divide-white/10">
+          {/* LEFT PANE: Pinned Reference Passage / Puzzle Premise with independent scrollbar */}
+          <div className={`w-full md:w-1/2 flex flex-col h-1/2 md:h-full overflow-hidden ${
+            isAuthenticMode ? "bg-[#fffdf7]" : "bg-slate-900/30"
           }`}>
-            <div className="font-bold uppercase tracking-wider text-[11px] text-amber-800 dark:text-amber-400 mb-2.5 flex items-center gap-2 border-b border-amber-200 dark:border-white/10 pb-2">
-              <HelpCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-              <span>Reference Paragraph / Directions / Premises (Study Carefully):</span>
+            <div className={`px-4 py-2.5 border-b flex items-center justify-between text-xs font-mono font-bold select-none ${
+              isAuthenticMode 
+                ? "bg-amber-100/60 border-amber-200/80 text-amber-900" 
+                : "bg-amber-950/40 border-amber-500/20 text-amber-400"
+            }`}>
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span className="tracking-wider uppercase">Reference Passage / Directions</span>
+              </div>
+              <span className="text-[10px] bg-amber-200/80 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 px-2 py-0.5 rounded-full font-semibold">
+                Pinned Left
+              </span>
             </div>
-            <div className="pt-1 font-mono text-slate-800 dark:text-slate-200 leading-relaxed">
+
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 font-mono text-xs sm:text-sm leading-relaxed whitespace-pre-line text-slate-800 dark:text-slate-200 select-text">
               {topPassage}
             </div>
           </div>
-        )}
 
-        {/* 2. MIDDLE BOX: Particular Question Statement */}
-        <div className={`p-4 sm:p-5 rounded-2xl border shadow-xs ${
-          isAuthenticMode ? "bg-white border-slate-200" : "bg-slate-900/60 border-white/10"
-        }`}>
-          <div className="text-[11px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-            <Bookmark className="w-3.5 h-3.5 text-cyan-500" />
-            <span>Question Statement:</span>
-          </div>
-          <div className={`font-semibold whitespace-pre-line ${fontClass} ${isAuthenticMode ? "text-slate-900" : "text-white"}`}>
-            {mainQuestion}
-          </div>
-        </div>
+          {/* RIGHT PANE: Question Statement + Options with independent scrollbar */}
+          <div className="w-full md:w-1/2 flex flex-col h-1/2 md:h-full overflow-y-auto p-4 sm:p-6 space-y-6">
+            <div className={`p-4 sm:p-5 rounded-2xl border shadow-xs ${
+              isAuthenticMode ? "bg-white border-slate-200" : "bg-slate-900/60 border-white/10"
+            }`}>
+              <div className="text-[11px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Bookmark className="w-3.5 h-3.5 text-cyan-500" />
+                <span>Question Statement:</span>
+              </div>
+              <div className={`font-semibold whitespace-pre-line ${fontClass} ${isAuthenticMode ? "text-slate-900" : "text-white"}`}>
+                {mainQuestion}
+              </div>
+            </div>
 
-        {/* 3. BOTTOM BOX: 5 Standard Banking MCQ Options Shifted Below */}
-        <div className="space-y-3 pt-2">
-          <div className="text-xs font-mono font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-            <span>Select the correct option (A - E):</span>
-            <span className="text-[10px] text-slate-400 hidden sm:inline font-normal">Tip: Press keys 1-5 or A-E on keyboard</span>
-          </div>
-
-          <div className="space-y-2.5">
-            {question.options.map((opt) => {
-              const isSelected = selectedOptionId === opt.id;
-              const optionText = language === "hi" && opt.textHindi ? opt.textHindi : opt.text;
-
-              return (
-                <label
-                  key={opt.id}
-                  onClick={() => onSelectOption(opt.id)}
-                  className={`flex items-start gap-3 p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer select-none ${
-                    isSelected
-                      ? isAuthenticMode
-                        ? "bg-[#eef5ff] border-[#337ab7] text-[#1f4a8b] shadow-sm ring-2 ring-[#337ab7]"
-                        : "bg-cyan-950/40 border-cyan-400 text-cyan-200 shadow-md ring-2 ring-cyan-400/50"
-                      : isAuthenticMode
-                        ? "bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-800"
-                        : "bg-slate-900/50 border-white/10 hover:bg-white/5 hover:border-white/20 text-slate-200"
-                  }`}
-                >
-                  {/* Radio Circle */}
-                  <div className="pt-0.5">
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
-                      isSelected
-                        ? isAuthenticMode
-                          ? "border-[#1f4a8b] bg-[#1f4a8b]"
-                          : "border-cyan-400 bg-cyan-400"
-                        : "border-slate-400 dark:border-slate-600 bg-transparent"
-                    }`}>
-                      {isSelected && <span className="w-2 h-2 rounded-full bg-white" />}
-                    </div>
-                  </div>
-
-                  {/* Option Label (A, B, C, D, E) & Text */}
-                  <div className="flex-1 flex items-start gap-2.5">
-                    <span className={`font-mono font-bold text-xs sm:text-sm px-2 py-0.5 rounded-lg flex-shrink-0 ${
-                      isSelected 
-                        ? isAuthenticMode ? "bg-[#1f4a8b] text-white" : "bg-cyan-500 text-black font-black"
-                        : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
-                    }`}>
-                      ({opt.id})
-                    </span>
-                    <span className={`text-xs sm:text-sm leading-relaxed ${isSelected ? "font-bold" : "font-normal"}`}>
-                      {optionText}
-                    </span>
-                  </div>
-                </label>
-              );
-            })}
+            {renderOptions()}
           </div>
         </div>
-      </div>
+      ) : (
+        /* STACKED VIEW (Fallback or toggled) */
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+          {topPassage && (
+            <div className={`p-4 sm:p-5 rounded-2xl border whitespace-pre-line font-mono text-xs sm:text-sm leading-relaxed shadow-sm ${
+              isAuthenticMode 
+                ? "bg-amber-50/80 border-amber-300/80 text-slate-900 ring-1 ring-amber-200" 
+                : "bg-gradient-to-r from-amber-950/20 to-slate-900 border-amber-500/30 text-slate-200"
+            }`}>
+              <div className="font-bold uppercase tracking-wider text-[11px] text-amber-800 dark:text-amber-400 mb-2.5 flex items-center gap-2 border-b border-amber-200 dark:border-white/10 pb-2">
+                <HelpCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                <span>Reference Paragraph / Directions / Premises (Study Carefully):</span>
+              </div>
+              <div className="pt-1 font-mono text-slate-800 dark:text-slate-200 leading-relaxed">
+                {topPassage}
+              </div>
+            </div>
+          )}
+
+          <div className={`p-4 sm:p-5 rounded-2xl border shadow-xs ${
+            isAuthenticMode ? "bg-white border-slate-200" : "bg-slate-900/60 border-white/10"
+          }`}>
+            <div className="text-[11px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <Bookmark className="w-3.5 h-3.5 text-cyan-500" />
+              <span>Question Statement:</span>
+            </div>
+            <div className={`font-semibold whitespace-pre-line ${fontClass} ${isAuthenticMode ? "text-slate-900" : "text-white"}`}>
+              {mainQuestion}
+            </div>
+          </div>
+
+          {renderOptions()}
+        </div>
+      )}
     </div>
   );
 }
-
