@@ -24,6 +24,8 @@ import {
   Award,
   ArrowRight
 } from "lucide-react";
+import { AdBanner } from "@/components/ads/AdBanner";
+import { EdTechPartners } from "@/components/affiliates/EdTechPartners";
 
 export default function ResultPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -197,6 +199,11 @@ export default function ResultPage({ params }: { params: Promise<{ id: string }>
           </div>
         </div>
 
+        {/* TOP LEADERBOARD AD */}
+        <div className="w-full">
+          <AdBanner slotId="result_top_leaderboard" format="leaderboard" />
+        </div>
+
         {/* TAB TOGGLE: SUMMARY VS QUESTION-BY-QUESTION REVIEW */}
         <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-slate-900 border border-white/10 w-fit">
           <button
@@ -285,6 +292,9 @@ export default function ResultPage({ params }: { params: Promise<{ id: string }>
                 ))}
               </div>
             </div>
+
+            {/* HIGH CONVERTING EDTECH PARTNER OFFERS */}
+            <EdTechPartners examName={exam.title} />
           </div>
         )}
 
@@ -326,16 +336,16 @@ export default function ResultPage({ params }: { params: Promise<{ id: string }>
 
             {/* Question Solution List */}
             <div className="space-y-4">
-              {filteredQuestions.map((q) => {
+              {filteredQuestions.map((q, idx) => {
                 const att = session?.attempts[q.id];
                 const isSelected = !!att?.selectedOptionId;
                 const isCorrect = att?.selectedOptionId === q.correctOptionId;
                 const isExpanded = expandedQuestionId === q.id || activeTab === "review";
 
                 return (
-                  <div
-                    key={q.id}
-                    className={`rounded-3xl border transition-all p-5 sm:p-6 space-y-4 ${
+                  <React.Fragment key={q.id}>
+                    <div
+                      className={`rounded-3xl border transition-all p-5 sm:p-6 space-y-4 ${
                       isCorrect
                         ? "bg-emerald-950/15 border-emerald-500/30"
                         : isSelected
@@ -430,6 +440,14 @@ export default function ResultPage({ params }: { params: Promise<{ id: string }>
                       )}
                     </div>
                   </div>
+
+                  {/* INLINE REVENUE UNIT EVERY 4 QUESTIONS */}
+                  {idx > 0 && (idx + 1) % 4 === 0 && (
+                    <div className="py-2">
+                      <AdBanner slotId={`result_inline_q_${idx}`} format="in-article" />
+                    </div>
+                  )}
+                  </React.Fragment>
                 );
               })}
             </div>
