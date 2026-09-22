@@ -34,8 +34,12 @@ export const metadata: Metadata = {
     description:
       "100% Free TCS iON Exam Simulator for SBI PO, IBPS PO, and Clerk aspirants.",
   },
+  verification: {
+    google: "TMWGmy8-85baH46TwoG0fvDL9Cs7olNqkrJ7YFzeQMk",
+  },
   other: {
     "google-adsense-account": "ca-pub-8023550227126773",
+    "google-site-verification": "TMWGmy8-85baH46TwoG0fvDL9Cs7olNqkrJ7YFzeQMk",
   },
 };
 
@@ -49,6 +53,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        <meta name="google-site-verification" content="TMWGmy8-85baH46TwoG0fvDL9Cs7olNqkrJ7YFzeQMk" />
         <meta name="google-adsense-account" content={adsenseId} />
         <script
           async
