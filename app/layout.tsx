@@ -34,6 +34,9 @@ export const metadata: Metadata = {
     description:
       "100% Free TCS iON Exam Simulator for SBI PO, IBPS PO, and Clerk aspirants.",
   },
+  other: {
+    "google-adsense-account": "ca-pub-8023550227126773",
+  },
 };
 
 export default function RootLayout({
@@ -46,6 +49,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        <meta name="google-adsense-account" content={adsenseId} />
         <Script
           async
           src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseId}`}
