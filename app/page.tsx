@@ -94,6 +94,8 @@ export default function HomePage() {
             <Zap className="w-4 h-4 text-amber-400 fill-current" />
             <span>Instant SBI PO Prelims Drill</span>
           </Link>
+        </div>
+
         {/* Top Homepage Ad Unit */}
         <div className="max-w-4xl mx-auto pt-6">
           <AdBanner format="leaderboard" slotId="home_top_leaderboard" />
