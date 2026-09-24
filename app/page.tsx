@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { SAMPLE_EXAMS } from "@/lib/exam-data";
 import { SiteFooter } from "@/components/navigation/SiteFooter";
+import { AdBanner } from "@/components/ads/AdBanner";
 
 export default function HomePage() {
   const sampleExam = SAMPLE_EXAMS[0];
@@ -93,10 +94,13 @@ export default function HomePage() {
             <Zap className="w-4 h-4 text-amber-400 fill-current" />
             <span>Instant SBI PO Prelims Drill</span>
           </Link>
+        {/* Top Homepage Ad Unit */}
+        <div className="max-w-4xl mx-auto pt-6">
+          <AdBanner format="leaderboard" slotId="home_top_leaderboard" />
         </div>
 
         {/* Key USPs Ribbon */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-10 text-left">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-6 text-left">
           <div className="p-4 rounded-2xl bg-slate-900/60 border border-white/5 space-y-1">
             <div className="flex items-center gap-2 text-cyan-400 font-mono text-xs font-bold">
               <CheckCircle2 className="w-4 h-4" />
@@ -225,6 +229,11 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Bottom Homepage Ad Unit */}
+      <div className="max-w-4xl mx-auto px-4 pb-12">
+        <AdBanner format="leaderboard" slotId="home_bottom_leaderboard" />
+      </div>
 
       {/* FOOTER */}
       <SiteFooter />
